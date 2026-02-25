@@ -87,10 +87,9 @@ async function waitForWebReady(port: number, timeoutMs: number): Promise<boolean
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
-export async function startManagedWeb(webDir: string): Promise<WebProcessState> {
-  const child = Bun.spawn(["bun", "run", "start"], {
-    cwd: webDir,
-    env: process.env,
+export async function startManagedWeb(serverEntry: string): Promise<WebProcessState> {
+  const child = Bun.spawn(["bun", serverEntry], {
+    env: { ...process.env, PORT: String(WEB_PORT) },
     stdio: ["ignore", "ignore", "ignore"],
     detached: true,
   });

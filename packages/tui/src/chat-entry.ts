@@ -91,10 +91,7 @@ export async function startChat(flags?: ChatFlags): Promise<void> {
 
   const root = createRoot(renderer);
 
-  const mod = "./chat-render";
-  const { renderChat } = (await import(mod)) as {
-    renderChat: (root: ReturnType<typeof createRoot>, params: Record<string, unknown>) => void;
-  };
+  const { renderChat } = await import("./chat-render");
   renderChat(root, {
     config,
     db,

@@ -5,7 +5,7 @@ const result = await Bun.build({
   outdir: "./dist",
   target: "bun",
   sourcemap: "none",
-  external: ["@libsql/client"],
+  external: ["@libsql/client", "@opentui/core", "@grindxp/web"],
   define: {
     "process.env.GRIND_GOOGLE_CLIENT_SECRET": JSON.stringify(
       process.env.GRIND_GOOGLE_CLIENT_SECRET ?? "",

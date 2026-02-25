@@ -1,6 +1,6 @@
 {
   "name": "@grindxp/cli",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Grind — a gamified productivity CLI. Track quests, earn XP, build streaks.",
   "keywords": [
     "cli",
@@ -38,7 +38,8 @@
     "prepublishOnly": "bun run build && bun run typecheck"
   },
   "dependencies": {
-    "@libsql/client": "^0.15.15"
+    "@libsql/client": "^0.15.15",
+    "@opentui/core": "0.1.82"
   },
   "devDependencies": {
     "@clack/prompts": "^1.0.1",
@@ -46,6 +47,9 @@
     "@types/qrcode-terminal": "0.12.2",
     "@whiskeysockets/baileys": "7.0.0-rc.9",
     "qrcode-terminal": "0.12.0"
+  },
+  "optionalDependencies": {
+    "@grindxp/web": "workspace:*"
   },
   "engines": {
     "bun": ">=1.0.0"

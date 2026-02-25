@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import * as p from "@clack/prompts";
 import { spinner } from "../spinner";
 import {
@@ -27,10 +27,12 @@ export async function webStartCommand(): Promise<void> {
     clearWebProcessState();
   }
 
-  const webDir = resolveWebDir();
-  if (!webDir) {
+  const web = resolveWeb();
+  if (!web.ok) {
     p.log.error(
-      "Web package not found. Make sure you are running grind from the source repository.",
+      web.reason === "not-installed"
+        ? "@grindxp/web is not installed. Run `bun add @grindxp/web`."
+        : "@grindxp/web is installed but not built. Run `bun run build` in apps/web.",
     );
     process.exit(1);
   }
@@ -39,7 +41,7 @@ export async function webStartCommand(): Promise<void> {
   spin.start("Starting web app…");
 
   try {
-    const state = await startManagedWeb(webDir);
+    const state = await startManagedWeb(web.serverEntry);
     spin.stop(`Web app started (pid ${state.pid}) at ${URL}`);
   } catch (err) {
     spin.error("Failed to start web app.");
@@ -94,19 +96,20 @@ export async function webServeCommand(args: string[]): Promise<void> {
     return;
   }
 
-  const webDir = resolveWebDir();
-  if (!webDir) {
+  const web = resolveWeb();
+  if (!web.ok) {
     p.log.error(
-      "Web package not found. Make sure you are running grind from the source repository.",
+      web.reason === "not-installed"
+        ? "@grindxp/web is not installed. Run `bun add @grindxp/web`."
+        : "@grindxp/web is installed but not built. Run `bun run build` in apps/web.",
     );
     process.exit(1);
   }
 
   p.log.step(`Starting web app…`);
 
-  const proc = Bun.spawn(["bun", "run", "start"], {
-    cwd: webDir,
-    env: process.env,
+  const proc = Bun.spawn(["bun", web.serverEntry], {
+    env: { ...process.env, PORT: String(WEB_PORT) },
     stdout: "ignore",
     stderr: "pipe",
   });
@@ -148,10 +151,25 @@ export async function webServeCommand(args: string[]): Promise<void> {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function resolveWebDir(): string | null {
-  // import.meta.dir = packages/cli/src/commands → up 4 = monorepo root → apps/web
-  const candidate = join(import.meta.dir, "..", "..", "..", "..", "apps", "web");
-  return existsSync(join(candidate, "package.json")) ? candidate : null;
+type WebResolution =
+  | { ok: true; serverEntry: string }
+  | { ok: false; reason: "not-installed" | "not-built" };
+
+function resolveWeb(): WebResolution {
+  let webDir: string;
+  try {
+    const pkgJson = Bun.resolveSync("@grindxp/web/package.json", import.meta.dir);
+    webDir = dirname(pkgJson);
+  } catch {
+    return { ok: false, reason: "not-installed" };
+  }
+
+  const serverEntry = join(webDir, "dist", "server", "server.js");
+  if (!existsSync(serverEntry)) {
+    return { ok: false, reason: "not-built" };
+  }
+
+  return { ok: true, serverEntry };
 }
 
 async function isPortReachable(port: number): Promise<boolean> {

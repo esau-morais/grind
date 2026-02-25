@@ -1,10 +1,19 @@
 {
   "name": "@grindxp/web",
   "version": "0.1.0",
-  "private": true,
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "imports": {
     "#/*": "./src/*"
+  },
+  "exports": {
+    ".": "./dist/server/server.js",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "dev": "vite dev --port 3000",
