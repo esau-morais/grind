@@ -27,6 +27,9 @@
   "exports": {
     ".": "./dist/index.js"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "start": "bun src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun --sourcemap=none --banner '#!/usr/bin/env bun' && chmod +x dist/index.js",
