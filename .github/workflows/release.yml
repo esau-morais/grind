@@ -65,14 +65,17 @@ jobs:
             os: linux
             arch: arm64
             runner: ubuntu-24.04-arm64
+
           - target: bun-darwin-x64
             os: darwin
             arch: x64
-            runner: macos-13
+            runner: macos-15-intel
+
           - target: bun-darwin-arm64
             os: darwin
             arch: arm64
             runner: macos-latest
+
           - target: bun-windows-x64
             os: windows
             arch: x64
