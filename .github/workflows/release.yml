@@ -49,7 +49,7 @@ jobs:
         working-directory: packages/cli
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: bun publish --no-git-checks --provenance
+        run: bun publish --no-git-checks --provenance --tolerate-republish
 
   build-binaries:
     needs: [typecheck]

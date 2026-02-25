@@ -15,9 +15,9 @@
   },
   "dependencies": {
     "@grindxp/core": "workspace:*",
-    "@opentui/core": "^0.1.80",
-    "@opentui/react": "0.1.80",
-    "ai": "6.0.90",
+    "@opentui/core": "0.1.82",
+    "@opentui/react": "0.1.82",
+    "ai": "6.0.100",
     "opentui-spinner": "0.0.6",
     "react": "19.2.4"
   },
