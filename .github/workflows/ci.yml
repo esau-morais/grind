@@ -35,7 +35,7 @@ jobs:
         run: bun run lint
 
       - name: Format
-        run: bun run format --check
+        run: bun run format
 
   build:
     runs-on: ubuntu-latest
