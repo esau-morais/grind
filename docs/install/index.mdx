@@ -1,0 +1,254 @@
+---
+title: "Installation"
+description: "Install Grind on macOS, Linux, or Windows using the installer script, Bun, or from source."
+summary: "Installation guide for Grind: one-line installer script (macOS/Linux), PowerShell installer (Windows), Bun global install, and from-source build."
+read_when:
+  - "User wants to install Grind"
+  - "User is on Windows and wants to install Grind"
+  - "User wants to install Grind without cloning the repo"
+---
+
+## Requirements
+
+- **macOS** 12+, **Linux** (x86_64 / arm64), or **Windows** 10+ (via WSL2 or PowerShell)
+- [Bun](https://bun.sh) v1.0+ (required at runtime)
+
+<Tip>
+  Don't have Bun? Install it first: `curl -fsSL https://bun.sh/install | bash` On Windows:
+  `powershell -c "irm bun.sh/install.ps1 | iex"`
+</Tip>
+
+<Warning>
+  **Windows Users**: Grind has limited support on native Windows PowerShell. The Forge daemon,
+  filesystem watchers, and process detection require a POSIX environment. For full functionality,
+  use **WSL2** (Windows Subsystem for Linux 2). If you only need basic quest/XP tracking, native
+  Windows works fine.
+</Warning>
+
+---
+
+<AccordionGroup>
+  <Accordion title="Installer script (recommended)" icon="terminal" defaultOpen>
+    The fastest path. Downloads, installs, and runs the setup wizard automatically.
+
+    <CodeGroup>
+      ```bash macOS-Linux-WSL2
+      curl -fsSL https://grindxp.app/install.sh | bash
+      ```
+
+      ```powershell Windows
+      iwr -useb https://grindxp.app/install.ps1 | iex
+      ```
+    </CodeGroup>
+
+    The script:
+    1. Detects your platform and architecture
+    2. Downloads the latest Grind release
+    3. Installs to `~/.grind/bin/` and adds it to your `PATH`
+    4. Runs `grindxp init` to set up your vault
+
+    To skip the setup wizard:
+
+    <CodeGroup>
+      ```bash macOS-Linux-WSL2
+      curl -fsSL https://grindxp.app/install.sh | bash -s -- --no-init
+      ```
+
+      ```powershell Windows
+      & ([scriptblock]::Create((iwr -useb https://grindxp.app/install.ps1))) -NoInit
+      ```
+    </CodeGroup>
+
+    <Note>
+      WSL2 is recommended for full feature support (filesystem watchers, process detection, Forge daemon). The PowerShell installer installs into WSL2 by default if available.
+    </Note>
+
+  </Accordion>
+
+  <Accordion title="Package manager (bun / npm / pnpm)" icon="package">
+    <CodeGroup>
+      ```bash bun
+      bun install -g grindxp
+      ```
+
+      ```bash npm
+      npm install -g grindxp
+      ```
+
+      ```bash pnpm
+      pnpm add -g grindxp
+      ```
+    </CodeGroup>
+
+  </Accordion>
+
+  <Accordion title="From source" icon="code">
+    For contributors or users who want to track `main`.
+
+    <Tabs>
+      <Tab title="macOS / Linux">
+        <Steps>
+          <Step title="Install Bun">
+            ```bash
+            curl -fsSL https://bun.sh/install | bash
+            ```
+          </Step>
+          <Step title="Clone and install">
+            ```bash
+            git clone https://github.com/esau-morais/grind
+            cd grind
+            bun install
+            ```
+          </Step>
+          <Step title="Initialize your vault">
+            ```bash
+            bun cli init
+            ```
+          </Step>
+          <Step title="(Optional) Add to PATH">
+            Add a shell alias for convenience:
+            ```bash
+            echo 'alias grindxp="bun --cwd ~/grind cli"' >> ~/.zshrc
+            source ~/.zshrc
+            ```
+          </Step>
+        </Steps>
+      </Tab>
+      <Tab title="Windows (WSL2)">
+        <Steps>
+          <Step title="Enable WSL2">
+            ```powershell
+            wsl --install
+            ```
+            Restart when prompted, then open a WSL terminal.
+          </Step>
+          <Step title="Install Bun inside WSL">
+            ```bash
+            curl -fsSL https://bun.sh/install | bash
+            ```
+          </Step>
+          <Step title="Clone and install">
+            ```bash
+            git clone https://github.com/esau-morais/grind
+            cd grind
+            bun install
+            ```
+          </Step>
+          <Step title="Initialize your vault">
+            ```bash
+            bun cli init
+            ```
+          </Step>
+        </Steps>
+
+        <Warning>
+          Run Grind inside WSL2, not in a native Windows shell. The Forge's filesystem watchers and process detection require a POSIX environment.
+        </Warning>
+      </Tab>
+      <Tab title="Windows (PowerShell native)">
+        Native Windows support is limited. The Forge daemon and some integrations require WSL2 or a Linux environment. For full functionality, use WSL2.
+
+        For basic quest/XP/CLI usage only:
+
+        <Steps>
+          <Step title="Install Bun">
+            ```powershell
+            powershell -c "irm bun.sh/install.ps1 | iex"
+            ```
+          </Step>
+          <Step title="Clone and install">
+            ```powershell
+            git clone https://github.com/esau-morais/grind
+            cd grind
+            bun install
+            ```
+          </Step>
+          <Step title="Initialize">
+            ```powershell
+            bun cli init
+            ```
+          </Step>
+        </Steps>
+      </Tab>
+    </Tabs>
+
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## After Installation
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="play" href="/get-started/quickstart">
+    Create your first quest and complete it.
+  </Card>
+  <Card title="Set up AI companion" icon="brain" href="/cli/setup">
+    Configure an AI provider to unlock the companion.
+  </Card>
+  <Card title="Configure integrations" icon="plug" href="/cli/integrations">
+    Connect Telegram, Discord, WhatsApp, or Google Calendar.
+  </Card>
+  <Card title="Launch the TUI" icon="monitor" href="/tui">
+    Open the 30fps terminal dashboard.
+  </Card>
+</CardGroup>
+
+## Updating
+
+<CodeGroup>
+  ```bash installer
+  curl -fsSL https://grindxp.app/install.sh | bash
+  ```
+
+```bash source
+cd grind && git pull && bun install
+```
+
+</CodeGroup>
+
+## Uninstalling
+
+Use the built-in uninstall command for a guided experience:
+
+```bash
+grindxp uninstall
+```
+
+This stops running services (gateway, web app) and optionally removes your vault and config. See the [uninstall command reference](/cli/uninstall) for all flags including `--all`, `--dry-run`, and `--yes`.
+
+To also remove the CLI binary after uninstalling:
+
+<CodeGroup>
+  ```bash installer
+  rm -rf ~/.grind/bin/
+  ```
+
+```bash bun
+bun remove -g grindxp
+```
+
+```bash npm
+npm uninstall -g grindxp
+```
+
+```bash pnpm
+pnpm remove -g grindxp
+```
+
+```bash source
+# Remove alias from ~/.zshrc or ~/.bashrc
+nano ~/.zshrc
+# Delete the line: alias grind="bun --cwd ~/grind cli"
+
+# Then delete the repo
+rm -rf ~/grind
+```
+
+</CodeGroup>
+
+<Warning>
+  Removing `~/.grind/` deletes your vault, encryption key, and all quest data. Back up
+  `~/.grind/vault.db` and `~/.grind/config.json` before uninstalling if you want to preserve your
+  data.
+</Warning>

@@ -1,0 +1,111 @@
+---
+title: "Forge"
+description: "The automation engine: signals, rules, and the daemon loop."
+summary: "Forge internals: signal collectors (git, filesystem, process, webhook), rule evaluation, action execution, deduplication, and the daemon loop."
+read_when:
+  - "Developer wants to understand how the forge evaluates rules"
+  - "Developer wants to add a new signal source"
+  - "User wants to debug why a forge rule isn't firing"
+  - "Developer wants to add a new action type"
+---
+
+The Forge is Grind's automation engine. It bridges the gap between real-world activity (code commits, file edits, running apps) and the quest system. It lives in `packages/core/src/forge/`.
+
+## Architecture
+
+```
+Signal Sources → Signals → Forge Engine → Action Plan → Forge Runtime
+```
+
+1. **Signal sources** collect events from the environment
+2. **Forge engine** evaluates rules against current signals
+3. **Action plan** is a list of actions to execute
+4. **Forge runtime** executes the plan and records results
+
+## Signal Sources
+
+`forge/runtime.ts` implements four signal collectors:
+
+### Git Collector
+
+Watches configured repositories for new commits. On each tick, it runs `git log` and compares against the last known commit hash stored in `signals`.
+
+Trigger type: `signal` with `triggerConfig.source = "git"`.
+
+### File Watcher
+
+Uses `statSync` to monitor file paths for changes. Changes are batched into signals keyed by path + mtime.
+
+Trigger type: `signal` with `triggerConfig.source = "file"` and `triggerConfig.path`.
+
+### Process Detector
+
+Checks running processes for matches against configured patterns using `ps aux`.
+
+Trigger type: `signal` with `triggerConfig.source = "process"`, `triggerConfig.processName`, and optional `triggerConfig.matchMode` (`contains` | `exact` | `regex`).
+
+### Webhook Signals
+
+Signals ingested by the gateway server are stored directly to the `signals` table. The forge daemon reads them on each tick.
+
+Trigger type: `webhook` with optional `triggerConfig.channel` and `triggerConfig.eventName`.
+
+## Rule Evaluation
+
+`forge/engine.ts` implements rule evaluation:
+
+```typescript
+const actionPlan = buildForgeActionPlan(rule, event);
+```
+
+For each enabled rule:
+
+1. Check trigger type matches the incoming event type
+2. If `cron` trigger: check if the cron expression fires at current time
+3. If `signal`/`webhook`/`event` trigger: check if `triggerConfig` fields match event payload
+4. If conditions match: build a `ForgeActionPlan` for execution
+
+### Deduplication
+
+`forge_runs` tracks every rule execution. Before executing a plan, the runtime checks if the same `dedupeKey` was already processed for that rule. This prevents the same git commit from completing a quest multiple times.
+
+## Action Execution
+
+`forge/runtime.ts` executes the action plan:
+
+| Action              | Description                                                                |
+| ------------------- | -------------------------------------------------------------------------- |
+| `queue-quest`       | Re-activates an abandoned/paused quest by questId                          |
+| `log-to-vault`      | Creates and immediately completes a bounty quest (auto-logs activity + XP) |
+| `send-notification` | Sends a notification via `console`, `telegram`, `webhook`, or `whatsapp`   |
+
+After execution, a `forge_runs` record is created to log the outcome and enable deduplication.
+
+## Trigger Types
+
+| Trigger   | Description                                                                                                 |
+| --------- | ----------------------------------------------------------------------------------------------------------- |
+| `cron`    | Evaluated on a cron schedule (`triggerConfig.cron` = 5-field expression, optional `triggerConfig.timezone`) |
+| `signal`  | Fires when a signal source emits a matching event (`triggerConfig.source` = `git` \| `file` \| `process`)   |
+| `webhook` | Fires when the gateway receives a matching inbound event                                                    |
+| `event`   | Fires on an internal application event                                                                      |
+| `manual`  | Only fires when explicitly triggered (e.g. via `grindxp forge run` or the `run_forge_rule` agent tool)      |
+
+## The Daemon Loop
+
+`grindxp forge daemon` runs `runForgeDaemon()` from `forge/runtime.ts`. The daemon:
+
+1. Runs an initial tick immediately
+2. Sleeps for the configured interval (default 60s)
+3. On each tick: collects signals from all active collectors, evaluates all enabled rules, executes any matching action plans
+4. Reads newly created rules from the DB on every tick (no restart needed)
+
+The daemon is single-threaded. All signal collection and rule evaluation happens within each tick.
+
+## Policy
+
+`forge/policy.ts` implements companion permission gates for forge operations:
+
+- **Risk levels**: `low` (queue-quest, send-notification), `medium` (log-to-vault), `high` (run-script)
+- **Trust gates**: drafting requires trust ≥ 2, enabling low-risk rules requires trust ≥ 3, enabling medium-risk requires trust ≥ 4
+- High-risk actions are never auto-enabled regardless of trust level

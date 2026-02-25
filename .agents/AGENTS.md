@@ -1,0 +1,3 @@
+- Avoid adding unnecessary comments to the code. Only add if actually needed.
+- At the end of each plan, list unresolved questions, if any. Sacrifice grammar for the sake of concision.
+- Always validate UI/UX and architectural decisions in plan mode using ASCII diagrams at the end of the plan.

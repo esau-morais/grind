@@ -1,0 +1,37 @@
+name: React Doctor
+
+on:
+  push:
+    branches: [main]
+    paths: ["apps/web/**"]
+  pull_request:
+    paths: ["apps/web/**"]
+
+concurrency:
+  group: react-doctor-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  react-doctor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: millionco/react-doctor@main
+        id: react-doctor
+        with:
+          directory: apps/web
+          diff: main
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          verbose: true
+
+      - name: Enforce minimum score
+        run: |
+          score="${{ steps.react-doctor.outputs.score }}"
+          echo "React Doctor score: $score"
+          if [ "$score" -lt 50 ]; then
+            echo "Score $score is below the minimum threshold of 50 (Critical). Fix the issues above."
+            exit 1
+          fi

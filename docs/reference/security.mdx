@@ -1,0 +1,95 @@
+---
+title: "Security"
+description: "Vault encryption, key management, companion trust risks, gateway exposure, and WhatsApp Web caveats."
+summary: "Security model: encryption key management, what granting Sovereign trust means, tool permission risks, gateway network exposure, WhatsApp Web session instability, and Turso cloud sync surface."
+read_when:
+  - "User wants to understand Grind's security model"
+  - "User is deciding how much trust to grant the companion"
+  - "User is exposing the gateway to the internet"
+  - "User lost their encryption key"
+  - "User wants to understand what data leaves their machine"
+---
+
+## Vault Encryption
+
+The vault (`~/.grind/vault.db`) is encrypted at rest via libsql's AES extension. The encryption key is stored inside `~/.grind/config.json` as the `encryptionKey` field. Grind sets `~/.grind/` to `700` and `config.json` to `600` on every write, so the key is owner-readable only.
+
+**If you lose `config.json`, your vault is unrecoverable.** There is no key recovery mechanism. `config.json` holds both your settings and the encryption key — backing up `vault.db` alone is not sufficient. Back up the config:
+
+```bash
+# Print the key value (e.g. to copy into a password manager)
+python3 -c "import sys,json; print(json.load(open('$HOME/.grind/config.json'))['encryptionKey'])"
+
+# Or copy the entire config file to a secure location
+cp ~/.grind/config.json /path/to/secure/backup/
+```
+
+The key is never transmitted anywhere. It is only read locally by the libsql client when opening the vault.
+
+## Companion Trust: Know What You're Granting
+
+The trust ladder has real consequences. Before escalating trust, understand what each level enables:
+
+| Level | Name              | Risk                                                                                                                                                                           |
+| ----- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0–1   | Watcher / Advisor | Read-only. No meaningful risk.                                                                                                                                                 |
+| 2     | Scribe            | Can create quests and log entries on your behalf. Low risk.                                                                                                                    |
+| 3     | Agent             | Can run `bash`, write files, edit files (**with an approval prompt**). Review every approval carefully. A poorly-worded request can result in unintended file changes.         |
+| 4     | Sovereign         | All tools, **no approval prompts**. The companion can run arbitrary shell commands without asking. Only grant this if you fully trust the model and your prompt configuration. |
+
+<Warning>
+  At trust level 4, a prompt injection in a webpage the companion fetches or a file it reads could
+  cause it to execute arbitrary commands silently. Treat Sovereign trust like root access.
+</Warning>
+
+### Tool Permission Scope
+
+At trust ≥ 3, the agent can invoke:
+
+- **`bash`**: executes arbitrary shell commands in your environment
+- **`write_file`**: creates or overwrites any file your user can write
+- **`edit_file`**: modifies any file your user can write
+
+These tools are intentionally powerful. The approval prompt at level 3 exists as a checkpoint. Read the tool call before approving.
+
+## Gateway Exposure
+
+By default, the gateway binds to `127.0.0.1:5174` (localhost only). It is **not** accessible from the network.
+
+If you configure an externally reachable host (e.g. `0.0.0.0` or a public IP) to receive webhooks from Telegram or WhatsApp:
+
+- Ensure `GRIND_GATEWAY_TOKEN` is set for the `/hooks/inbound` endpoint
+- Discord and WhatsApp endpoints verify signatures automatically (Ed25519 / HMAC-SHA256)
+- Telegram does not sign payloads with HMAC or Ed25519. If `GRIND_TELEGRAM_WEBHOOK_SECRET` is set,
+  Grind verifies the `x-telegram-bot-api-secret-token` header that Telegram attaches to every
+  delivery — set this. If it is not set, your webhook URL path is the only gate; keep it
+  non-guessable and treat it as a secret
+- Consider placing the gateway behind a reverse proxy (nginx, Caddy) with TLS
+
+Exposing the gateway to the internet without signature verification on all endpoints is a risk. A malicious POST could create or complete quests.
+
+## WhatsApp Web (Baileys)
+
+The WhatsApp Web integration connects via the unofficial Baileys library, which reverse-engineers the WhatsApp Web protocol.
+
+- **Sessions can be remotely revoked by WhatsApp at any time**, without warning
+- WhatsApp may ban accounts using unofficial clients, though this is uncommon for personal use
+- Session state is stored in your vault; re-linking requires scanning a new QR code
+- **Do not use this for critical automation.** Use the official WhatsApp Cloud API (`GRIND_WHATSAPP_MODE=cloud`) for stable production use
+
+## Turso Cloud Sync
+
+When Turso sync is enabled (`TURSO_DATABASE_URL` + `TURSO_AUTH_TOKEN`), your vault data is replicated to Turso's servers.
+
+- Data is encrypted in transit (TLS) and at rest on Turso
+- The `TURSO_AUTH_TOKEN` grants full read/write access to your database. Store it as a secret, not in a committed `.env` file
+- Grind does not share any data with Turso beyond the sync replication
+
+## Local-First as a Security Property
+
+Grind's local-first architecture means:
+
+- No account, no login, no external API calls unless you configure them
+- The AI provider (Anthropic, OpenAI, etc.) receives your conversation messages. This is unavoidable when using cloud AI. Use Ollama if you need fully offline operation
+- No telemetry, analytics, or crash reporting is sent anywhere
+- Quest data, skill trees, streaks, and logs never leave your machine unless you enable Turso sync or send them to an AI provider as context

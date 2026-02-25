@@ -1,0 +1,132 @@
+---
+title: "grindxp forge"
+description: "Manage automation rules and the forge daemon."
+summary: "Forge subcommands: create rules, list rules, toggle enable/disable, manually run a tick, and manage the background daemon."
+read_when:
+  - "User wants to create an automation rule"
+  - "User wants to start or stop the forge daemon"
+  - "User wants to see what forge rules are active"
+  - "User wants to manually trigger a forge tick"
+---
+
+The Forge watches signals (git, filesystem, processes, webhooks) and applies rules to automatically manage quests and send notifications.
+
+You can also manage forge rules via the Companion chat using `create_forge_rule`, `list_forge_rules`, `update_forge_rule`, `run_forge_rule`, and `delete_forge_rule`.
+
+## Subcommands
+
+### `forge create`
+
+```bash
+grindxp forge create
+```
+
+Interactive wizard to create a new forge rule. Prompts for:
+
+- **Trigger type**: `cron`, `signal`, `webhook`, `event`, `manual`
+- **Trigger config**: cron expression, signal source, watched path, process pattern, etc.
+- **Action type**: `queue-quest`, `log-to-vault`, `send-notification`
+- **Action config**: questId, activity type, notification channel, etc.
+
+### `forge list`
+
+```bash
+grindxp forge list
+```
+
+Lists all forge rules with their trigger, action, enabled status, and last run time.
+
+### `forge toggle`
+
+```bash
+grindxp forge toggle
+```
+
+Select a rule to enable or disable. Disabled rules are skipped during forge ticks.
+
+### `forge run`
+
+```bash
+grindxp forge run
+```
+
+Manually trigger a single forge tick. Evaluates all enabled rules against current signals.
+
+### `forge run-rule`
+
+```bash
+grindxp forge run-rule <ruleId>
+```
+
+Run a specific forge rule immediately, regardless of its trigger type. Useful for testing without waiting for the next tick.
+
+### `forge tick`
+
+```bash
+grindxp forge tick
+```
+
+Same as `forge run` but outputs verbose debug output. Useful for debugging why a rule isn't firing.
+
+### `forge daemon`
+
+```bash
+grindxp forge daemon
+```
+
+Starts the forge daemon as a foreground process. The daemon runs a tick on the configured interval (default 60s) and listens for real-time signals.
+
+For production use, manage the daemon via the [`gateway`](/cli/gateway) command which handles process lifecycle.
+
+## Trigger Types
+
+| Trigger   | Description                                                                                                                |
+| --------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `cron`    | Evaluated on a cron schedule (`triggerConfig.cron`, optional `triggerConfig.timezone`)                                     |
+| `signal`  | Fires when a signal is detected: git commit, file change, or running process (`triggerConfig.source = git\|file\|process`) |
+| `webhook` | Fires when the gateway receives a matching inbound event                                                                   |
+| `event`   | Fires on an internal application event                                                                                     |
+| `manual`  | Only fires when explicitly triggered via CLI or agent tool                                                                 |
+
+## Action Types
+
+| Action              | Description                                                                                                          |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `queue-quest`       | Re-activates a quest by ID (`actionConfig.questId`)                                                                  |
+| `log-to-vault`      | Creates and auto-completes a bounty quest, awarding XP (`actionConfig.activityType`, `actionConfig.durationMinutes`) |
+| `send-notification` | Sends a message via `console`, `telegram`, `webhook`, or `whatsapp` (`actionConfig.channel`, `actionConfig.message`) |
+
+## Configuration Examples
+
+Cron rule (daily recap notification via Telegram):
+
+```json
+{
+  "name": "Daily recap",
+  "triggerType": "cron",
+  "triggerConfig": { "cron": "0 20 * * *", "timezone": "America/New_York" },
+  "actionType": "send-notification",
+  "actionConfig": {
+    "channel": "telegram",
+    "chatId": "YOUR_CHAT_ID",
+    "message": "Time to log today's progress!"
+  }
+}
+```
+
+Signal rule (auto-log coding session on git commit):
+
+```json
+{
+  "name": "Log coding on commit",
+  "triggerType": "signal",
+  "triggerConfig": { "source": "git" },
+  "actionType": "log-to-vault",
+  "actionConfig": { "activityType": "coding", "durationMinutes": 30 }
+}
+```
+
+## Related
+
+- [Forge Engine](/core/forge): internals and rule evaluation details
+- [`gateway`](/cli/gateway): manage the gateway server that receives webhooks

@@ -1,0 +1,62 @@
+---
+title: "Grind"
+description: "Your Life Is The Game. Level Up For Real."
+mode: "custom"
+---
+
+import { Hero } from "/snippets/hero.jsx";
+
+<Hero />
+
+<div style={{ maxWidth: '900px', margin: '0 auto', padding: '2.5rem 1.5rem 4rem' }}>
+
+<p
+  style={{
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    color: "rgba(255,255,255,0.35)",
+    letterSpacing: "0.1em",
+    textTransform: "uppercase",
+    margin: "0 0 1rem",
+  }}
+>
+  What can you do?
+</p>
+
+<CardGroup cols={3}>
+  <Card title="Chat with your AI companion" icon="sparkles" href="/companion/overview">
+    Ask anything, get quest suggestions, review your progress. Your companion learns your habits and
+    earns autonomy over time.
+  </Card>
+  <Card title="Automate your routines" icon="zap" href="/cli/forge">
+    Forge watches git commits, timers, and messages from Telegram or Discord to automatically log
+    progress. No extra steps required.
+  </Card>
+  <Card title="Level up for real" icon="swords" href="/get-started/what-is-grind">
+    Quests, XP, skill trees, and streaks. Every number is calculated transparently. No black boxes.
+  </Card>
+</CardGroup>
+
+<p
+  style={{
+    fontSize: "0.75rem",
+    fontWeight: 600,
+    color: "rgba(255,255,255,0.35)",
+    letterSpacing: "0.1em",
+    textTransform: "uppercase",
+    margin: "2.5rem 0 1rem",
+  }}
+>
+  Jump in
+</p>
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/install/index">
+    Install Grind and complete your first quest in under 5 minutes.
+  </Card>
+  <Card title="Game Mechanics" icon="calculator" href="/reference/game-mechanics">
+    How XP is calculated, level curves, streak tiers, proof multipliers.
+  </Card>
+</CardGroup>
+
+</div>

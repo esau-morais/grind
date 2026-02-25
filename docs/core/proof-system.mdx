@@ -1,0 +1,80 @@
+---
+title: "Proof System"
+description: "How completion evidence is captured, validated, and turned into XP multipliers."
+summary: "Proof types, how proofs are created, proof validation, and the signal-to-proof-type mapping used by the Forge."
+read_when:
+  - "Developer wants to understand how proofs work internally"
+  - "User wants to know why their XP was a specific amount"
+  - "Developer wants to create a proof programmatically"
+---
+
+The proof engine lives in `packages/core/src/proof/engine.ts`.
+
+## Proof Creation
+
+A proof is created whenever a quest is completed. The proof type depends on how the completion was initiated:
+
+| Completion Path           | Proof Type                  |
+| ------------------------- | --------------------------- |
+| `grindxp complete`        | `self-report`               |
+| `grindxp stop`            | `duration`                  |
+| Forge: timer session      | `duration` or `multi-proof` |
+| Forge: git signal         | `git-commit`                |
+| Forge: file watcher       | `file-change`               |
+| Forge: process detector   | `process-check`             |
+| Forge: calendar webhook   | `calendar-match`            |
+| Manual with screenshot    | `screenshot`                |
+| Companion AI analysis     | `ai-verify`                 |
+| Multiple signals combined | `multi-proof`               |
+
+## Multi-Proof Aggregation
+
+When the Forge detects multiple signal types for the same quest completion window, it upgrades to `multi-proof` automatically:
+
+```typescript
+const proofType = signals.length > 1 ? "multi-proof" : signalToProofType(signals[0]);
+```
+
+This is the highest-multiplier proof type (1.5x) and is earned by having your environment verify your work.
+
+## Proof Data
+
+Each proof record stores the raw evidence:
+
+```typescript
+type ProofData = {
+  type: ProofType;
+  // for git-commit
+  commitHash?: string;
+  commitMessage?: string;
+  repoPath?: string;
+  // for file-change
+  filePaths?: string[];
+  // for duration
+  startedAt?: number;
+  stoppedAt?: number;
+  durationSeconds?: number;
+  // for process-check
+  processName?: string;
+  // for screenshot
+  imagePath?: string;
+  // for ai-verify
+  verificationNote?: string;
+  // for calendar-match
+  calendarEventId?: string;
+  // for multi-proof
+  sources?: ProofType[];
+};
+```
+
+## Validation
+
+`validateProof(proof)` checks that required fields are present for the given proof type. Invalid proofs fall back to `self-report` (1.0x) rather than rejecting the completion.
+
+## Multiplier Lookup
+
+```typescript
+import { proofMultiplier } from "@grindxp/core/proof";
+
+const multiplier = proofMultiplier("git-commit"); // → 1.3
+```

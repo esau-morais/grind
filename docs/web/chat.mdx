@@ -1,0 +1,36 @@
+---
+title: "Chat"
+description: "AI companion chat in the browser: streaming responses, tool visibility, and conversation history."
+---
+
+The chat screen at `/app/chat` is a full AI companion interface built into the web app.
+
+## Interface
+
+**Conversation sidebar**: Browse and switch between past conversations. Each session is stored in your vault and accessible at any time.
+
+**Message area**: Streaming responses appear token by token. When the companion uses a tool (looking up your quests, checking your XP, running a command), the tool call appears inline as a collapsible card showing what was sent and what came back.
+
+**Input**: Type your message and press `Cmd+Enter` (or `Ctrl+Enter`) to send. Auto-grows as you type.
+
+## Starting a conversation
+
+Click any conversation in the sidebar to load it, or start a new one. An empty state shows suggested prompts to get you going:
+
+- What should I work on today?
+- How's my consistency looking this week?
+- Create a daily quest for evening reading.
+- What's my highest-level skill?
+
+## Tool visibility
+
+When the companion takes an action (checking your vault, creating a quest, running a search), you'll see exactly what it did and what the result was. Nothing happens invisibly.
+
+## Sessions
+
+Conversations are saved automatically to your vault. Nothing is sent to any external service beyond the AI provider you've configured.
+
+<Note>
+  The companion chat uses the same AI provider and trust level you've set up with `grindxp setup`.
+  See [Your AI Companion](/companion/overview) for configuration.
+</Note>

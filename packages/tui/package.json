@@ -1,0 +1,28 @@
+{
+  "name": "@grindxp/tui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.tsx",
+  "exports": {
+    ".": "./src/index.tsx",
+    "./chat": "./src/chat-entry.ts"
+  },
+  "scripts": {
+    "start": "bun src/index.tsx",
+    "chat": "bun src/chat.tsx",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@grindxp/core": "workspace:*",
+    "@opentui/core": "^0.1.80",
+    "@opentui/react": "0.1.80",
+    "ai": "6.0.90",
+    "opentui-spinner": "0.0.6",
+    "react": "19.2.4"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.14",
+    "culori": "4.0.2"
+  }
+}

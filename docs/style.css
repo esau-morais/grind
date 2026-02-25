@@ -1,0 +1,75 @@
+footer {
+  margin-top: 2rem;
+}
+
+.nav-tabs {
+  position: relative;
+}
+
+.nav-tabs-item > div {
+  opacity: 0;
+}
+
+.nav-tabs-underline {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 1.5px;
+  width: var(--nav-tab-underline-width, 0);
+  transform: translateX(var(--nav-tab-underline-x, 0));
+  background-color: rgb(var(--primary));
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    transform 260ms ease-in-out,
+    width 260ms ease-in-out,
+    opacity 160ms ease-in-out;
+  will-change: transform, width;
+}
+
+html.dark .nav-tabs-underline {
+  background-color: rgb(var(--primary-light));
+}
+
+.nav-tabs-underline-ready .nav-tabs-underline {
+  opacity: 1;
+}
+
+#sidebar-content {
+  position: relative;
+}
+
+#navigation-items a.border-primary {
+  border-color: transparent !important;
+}
+
+.sidebar-link-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: var(--sidebar-indicator-height, 0px);
+  transform: translateX(var(--sidebar-indicator-x, 0px)) translateY(var(--sidebar-indicator-y, 0px));
+  background-color: rgb(var(--primary));
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    transform 260ms ease-in-out,
+    height 260ms ease-in-out,
+    opacity 160ms ease-in-out;
+  will-change: transform, height;
+}
+
+html.dark .sidebar-link-indicator {
+  background-color: rgb(var(--primary-light));
+}
+
+.sidebar-link-indicator-ready .sidebar-link-indicator {
+  opacity: 1;
+}
+
+.sidebar-link-indicator-instant .sidebar-link-indicator {
+  transition: none;
+}

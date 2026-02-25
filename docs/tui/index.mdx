@@ -1,0 +1,50 @@
+---
+title: "TUI Overview"
+description: "The Grind terminal dashboard: a 30fps React UI for your life OS."
+summary: "Overview of the Grind TUI: how to launch it, keyboard navigation, and what screens are available."
+read_when:
+  - "User wants to know how to open the terminal UI"
+  - "User wants to navigate the TUI"
+  - "User is choosing between CLI and TUI"
+---
+
+<CodeGroup>
+  ```bash installed
+  grindxp
+  ```
+
+```bash dev
+bun tui
+```
+
+</CodeGroup>
+
+The TUI is a full-screen terminal application running at 30fps, built with [OpenTUI](https://opentui.com) and React. It renders the same domain data as the CLI but with persistent views, real-time updates, and an interactive chat interface.
+
+## Keyboard Navigation
+
+| Key      | Action           |
+| -------- | ---------------- |
+| `d`      | Dashboard screen |
+| `q`      | Quests screen    |
+| `s`      | Skills screen    |
+| `c`      | Chat screen      |
+| `r`      | Refresh data     |
+| `Ctrl-C` | Quit             |
+
+## Screens
+
+<CardGroup cols={2}>
+  <Card title="Dashboard" icon="layout-dashboard" href="/tui/dashboard">
+    Active quests, XP stats, streaks, and today's completed items.
+  </Card>
+  <Card title="Quests" icon="list-checks" href="/tui/quests">
+    Full quest list with status and streak indicators.
+  </Card>
+  <Card title="Skills" icon="git-branch" href="/tui/skills">
+    Skill tree with levels and XP progress.
+  </Card>
+  <Card title="Chat" icon="message-square" href="/tui/chat">
+    Streaming AI companion chat with tool call rendering.
+  </Card>
+</CardGroup>

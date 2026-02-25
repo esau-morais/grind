@@ -1,0 +1,52 @@
+---
+title: "grindxp init"
+description: "First-time setup wizard that creates your vault, encryption key, and user profile."
+summary: "The init command walks through first-time Grind setup: vault creation, encryption key generation, user profile, and optional AI configuration."
+read_when:
+  - "User is setting up Grind for the first time"
+  - "User wants to know what init does to their system"
+  - "User wants to reset or reinitialize their vault"
+---
+
+```bash
+grindxp init
+```
+
+## What It Does
+
+<Steps>
+  <Step title="Creates ~/.grind/">
+    The vault directory at `~/.grind/` is created if it doesn't exist. This is where your encrypted
+    SQLite database and config files live.
+  </Step>
+  <Step title="Generates an encryption key">
+    A random AES encryption key is generated and stored in `~/.grind/.key`. This key encrypts your
+    vault at rest. **Do not lose it.** There's no recovery without it.
+  </Step>
+  <Step title="Runs database migrations">
+    The SQLite schema is applied (14 tables: users, quests, quest_logs, proofs, skills, rituals,
+    signals, forge_rules, forge_runs, trust_log, companion_settings, companion_insights,
+    conversations, messages).
+  </Step>
+  <Step title="Creates your user profile">
+    Interactive prompts ask for your name and timezone. This creates the `users` record that all
+    other data references.
+  </Step>
+  <Step title="Optional: AI setup">
+    You can configure an AI provider immediately or skip with `Ctrl-C` and run `grindxp setup`
+    later. Grind works fully without an API key.
+  </Step>
+</Steps>
+
+## After Init
+
+```bash
+grindxp status      # verify vault is ready
+grindxp setup       # configure AI provider (optional)
+grindxp quest create # create your first quest
+```
+
+<Warning>
+  Running `init` on an existing vault will prompt for confirmation before overwriting. Your existing
+  data is not automatically backed up.
+</Warning>

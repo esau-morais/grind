@@ -1,0 +1,125 @@
+---
+title: "Core Concepts"
+description: "The mechanics behind quests, XP, skills, streaks, proofs, and automation."
+---
+
+## Quests
+
+Every goal in Grind is a quest. Quests move through a simple lifecycle:
+
+| State       | Meaning                            |
+| ----------- | ---------------------------------- |
+| `available` | Ready to be started                |
+| `active`    | In progress                        |
+| `completed` | Done, XP awarded                   |
+| `failed`    | Deadline passed without completion |
+| `abandoned` | Manually dropped                   |
+
+### Types
+
+| Type     | Resets         | Best for                  |
+| -------- | -------------- | ------------------------- |
+| `daily`  | Every midnight | Daily habits              |
+| `weekly` | Every Monday   | Weekly goals              |
+| `bounty` | Never          | One-off tasks             |
+| `epic`   | Never          | Multi-step projects       |
+| `chain`  | Never          | Sequential workflows      |
+| `ritual` | On a schedule  | Recurring structured work |
+
+### Difficulty
+
+| Difficulty | XP multiplier |
+| ---------- | ------------- |
+| `easy`     | 1.0x          |
+| `medium`   | 1.5x          |
+| `hard`     | 2.0x          |
+| `epic`     | 3.0x          |
+
+## XP
+
+XP is deterministic. The same inputs always produce the same output:
+
+```
+final_xp = base_xp × difficulty × streak_bonus × proof_bonus
+```
+
+Your character levels up as XP accumulates. Early levels come quickly; later ones require more. Each skill also has its own independent level curve, so skills you use often will advance faster.
+
+## Skill Trees
+
+Skills are hierarchical. When you complete a quest, XP flows to every skill tagged on that quest. Each skill tracks its own XP; parent skills do not automatically inherit from children.
+
+You can build any tree structure that makes sense for your life. Common starting trees:
+
+- **Body** → Fitness → Strength / Cardio / Mobility
+- **Mind** → Focus / Learning → Reading / Courses
+- **Work** → Engineering / Writing
+
+## Streaks
+
+Streaks are per-quest. A daily quest tracks consecutive days completed; a weekly quest tracks consecutive weeks.
+
+| Days  | Tier         | XP bonus |
+| ----- | ------------ | -------- |
+| 1–2   | —            | 0%       |
+| 3–6   | Spark        | +10%     |
+| 7–13  | Flame        | +20%     |
+| 14–29 | Blaze        | +30%     |
+| 30–59 | Inferno      | +40%     |
+| 60–99 | Wildfire     | +45%     |
+| 100+  | Eternal Fire | +50%     |
+
+**Streak shields** protect against a single missed day. They're earned through consistent long streaks and consumed automatically before the streak breaks.
+
+## Proof
+
+Proof is evidence of completion. The type of proof you submit determines a multiplier on your XP:
+
+| Type             | Multiplier | How it's created                           |
+| ---------------- | ---------- | ------------------------------------------ |
+| `self-report`    | 1.0x       | Clicking complete with no other signal     |
+| `timestamp`      | 1.1x       | Logged at a specific time                  |
+| `duration`       | 1.1x       | Logged with elapsed time from a timer      |
+| `process-check`  | 1.2x       | A matching process was detected running    |
+| `file-change`    | 1.2x       | A file was modified in a tracked directory |
+| `git-commit`     | 1.3x       | A commit was made to a tracked repo        |
+| `screenshot`     | 1.3x       | Image attached as evidence                 |
+| `ai-verify`      | 1.4x       | Companion confirmed the activity           |
+| `calendar-match` | 1.3x       | A calendar event matched                   |
+| `multi-proof`    | 1.5x       | Multiple proof types combined              |
+
+The Forge can automatically generate `multi-proof` by combining git activity, process detection, and duration, giving you the maximum multiplier with no extra effort.
+
+## Companion Trust
+
+The AI companion has five trust levels. Higher trust means more autonomy:
+
+| Level | Name      | Capabilities                                       |
+| ----- | --------- | -------------------------------------------------- |
+| 0     | Watcher   | Read-only: observe quests and stats                |
+| 1     | Advisor   | Suggest quests, warn about missed goals            |
+| 2     | Scribe    | Create quests, log entries, read-only tools        |
+| 3     | Agent     | Execute tools, modify quests, bash (with approval) |
+| 4     | Sovereign | Full autonomy, no approval prompts                 |
+
+See [Your AI Companion](/companion/overview) to configure trust level and set up a provider.
+
+## The Forge
+
+The Forge is a background automation engine. It watches for signals and fires actions when rules match.
+
+**Signal sources:**
+
+- Git commits in watched repositories
+- File changes in watched directories
+- Running processes that match a pattern
+- Webhooks from Telegram, Discord, WhatsApp, or Google Calendar
+
+**Actions a rule can trigger:**
+
+- Create or complete a quest
+- Award XP directly
+- Send a notification
+- Run a script
+
+Rules run on a schedule (cron) or react immediately when a signal arrives. See [Forge](/cli/forge) for how to create and manage rules.

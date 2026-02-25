@@ -1,0 +1,72 @@
+---
+title: "Skill Trees"
+description: "How the skill tree is built, how XP flows, and how skills are structured."
+summary: "Skill tree implementation: directed graph construction, XP routing on quest completion, skill level calculation, and the repository interface."
+read_when:
+  - "Developer wants to understand how skills are stored and traversed"
+  - "User wants to know how XP gets distributed to skills"
+  - "Developer wants to add or query skills programmatically"
+---
+
+The skill tree module lives in `packages/core/src/skill/tree.ts`.
+
+## Data Model
+
+Skills are stored flat in the `skills` table with a `parent_id` self-reference:
+
+```sql
+skills (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  parent_id TEXT REFERENCES skills(id),
+  xp INTEGER NOT NULL DEFAULT 0,
+  level INTEGER NOT NULL DEFAULT 0,
+  user_id TEXT NOT NULL
+)
+```
+
+## Building the Tree
+
+`buildSkillTree(skills: Skill[]): SkillNode[]` takes the flat list from the database and constructs a directed acyclic graph. Each node has a `children` array containing its direct descendants.
+
+```typescript
+import { buildSkillTree } from "@grindxp/core/skill";
+
+const tree = buildSkillTree(await skillRepo.list(userId));
+// → SkillNode[] with nested children
+```
+
+Root nodes (skills without a parent) are the top-level entries.
+
+## XP Routing
+
+When a quest is completed, `collectSkillXp` determines how XP is distributed:
+
+```typescript
+const updates = collectSkillXp(quest.skillTags, xpEarned);
+// → [{ skillId, xpDelta }, ...]
+```
+
+XP is awarded to each tagged skill directly. Parent skills do not automatically receive child XP; each node is independent.
+
+`updateSkillXp` then applies the updates and recalculates the level for each affected skill.
+
+## Skill Repository
+
+```typescript
+import { createSkillRepository } from "@grindxp/core/vault";
+
+const repo = createSkillRepository(db);
+
+// Create a skill
+await repo.create({ name: "Strength", parentId: "fitness-skill-id" });
+
+// List all
+const skills = await repo.list(userId);
+
+// Build the tree
+const tree = buildSkillTree(skills);
+
+// Update XP after quest completion (called internally by quest repo)
+await repo.addXp(skillId, xpDelta);
+```

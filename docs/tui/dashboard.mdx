@@ -1,0 +1,41 @@
+---
+title: "Dashboard Screen"
+description: "Real-time overview of active quests, XP, streaks, and today's completions."
+summary: "The TUI dashboard screen shows active quests, stats panel (level, XP, streak, top skills), running timer, and completed-today list."
+read_when:
+  - "User wants to understand what the dashboard displays"
+  - "User wants to see their running timer in the TUI"
+---
+
+Press `d` to open the dashboard screen.
+
+## Layout
+
+The dashboard is split into two panels:
+
+**Left panel: Active Quests**
+
+- All quests in `active` state
+- Quest type badge (daily/weekly/bounty/epic)
+- Difficulty indicator
+- Streak counter for habits
+- Running timer display (if a timer is active)
+
+**Right panel: Stats**
+
+- Character level and title
+- Total XP and XP bar to next level
+- Active quest count
+- Quests completed today
+- Best active streak
+- Top 3 skills with level and XP bar
+
+**Bottom: Completed Today**
+
+- All quests completed in the current calendar day
+- XP earned per completion
+- Proof type used
+
+## Live Updates
+
+The dashboard refreshes on data changes. Press `r` at any time to force a refresh.

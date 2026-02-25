@@ -1,0 +1,80 @@
+---
+title: "Vault"
+description: "The encrypted SQLite database: client, repositories, and migrations."
+summary: "Vault module: libsql client setup, encryption, Turso sync, migration runner, and the repository pattern used for all database access."
+read_when:
+  - "Developer wants to understand how the database is set up"
+  - "Developer wants to write a new repository"
+  - "User wants to understand where their data is stored"
+  - "Developer is debugging a migration issue"
+---
+
+The vault is Grind's database layer. It lives in `packages/core/src/vault/`. The underlying storage is SQLite via [libsql](https://github.com/tursodatabase/libsql), with optional Turso cloud sync.
+
+## Storage Location
+
+By default, the vault database is at `~/.grind/vault.db`. This can be overridden via `GRIND_VAULT_PATH`.
+
+## Encryption
+
+The vault is encrypted at rest using libsql's AES encryption extension. The key is stored at `~/.grind/.key` and set via `GRIND_ENCRYPTION_KEY`.
+
+```typescript
+const client = createClient({
+  url: `file:${vaultPath}/vault.db`,
+  encryptionKey: config.encryptionKey,
+});
+```
+
+<Warning>
+  The encryption key is required to open the vault. If you lose it, your data is unrecoverable. Back
+  it up to a password manager.
+</Warning>
+
+## Turso Sync
+
+For optional cloud backup and multi-device sync, configure a Turso database:
+
+```bash
+TURSO_DATABASE_URL=libsql://your-db.turso.io
+TURSO_AUTH_TOKEN=your-token
+```
+
+With these set, libsql operates in embedded replica mode. The local SQLite file is the primary, syncing bidirectionally with Turso.
+
+## Migrations
+
+Migrations are SQL files in `packages/core/drizzle/`. The migration runner in `vault/client.ts` applies them on startup.
+
+The standard Drizzle migration runner uses Postgres-compatible syntax for migration tracking. Grind replaces it with a custom SQLite-compatible runner that uses a simple `drizzle_migrations` table.
+
+To generate a new migration after schema changes:
+
+```bash
+bun run db:generate
+bun run db:migrate   # apply locally
+bun run db:push      # push to Turso (if configured)
+```
+
+## Schema
+
+13 tables defined with Drizzle ORM in `vault/schema.ts`: `users`, `quests`, `quest_logs`, `proofs`, `skills`, `rituals`, `signals`, `forge_rules`, `forge_runs`, `trust_log`, `companion_settings`, `conversations`, `messages`. All timestamps are Unix epoch integers; primary keys are UUIDs.
+
+## Repository Pattern
+
+All database access goes through repository objects. Each domain entity has a corresponding repository:
+
+```typescript
+import { createVaultClient } from "@grindxp/core/vault";
+
+const { db } = await createVaultClient(config);
+
+// Repositories
+const questRepo = createQuestRepository(db);
+const skillRepo = createSkillRepository(db);
+const userRepo = createUserRepository(db);
+const companionRepo = createCompanionRepository(db);
+const forgeRepo = createForgeRepository(db);
+```
+
+Repositories expose typed CRUD operations. They do not expose raw SQL; all queries go through Drizzle's query builder.

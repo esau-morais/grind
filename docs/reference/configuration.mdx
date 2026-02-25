@@ -1,0 +1,70 @@
+---
+title: "Configuration"
+description: "How Grind is configured: vault, companion settings, and the grind-home directory."
+summary: "Configuration reference: ~/.grind/ directory layout, config file format, companion settings, and how settings are resolved."
+read_when:
+  - "User wants to understand where Grind stores its configuration"
+  - "User wants to manually edit their config"
+  - "User is migrating their vault to a new machine"
+---
+
+## The `~/.grind/` Directory
+
+All Grind data and configuration lives in `~/.grind/` by default (overridable via `GRIND_VAULT_PATH`).
+
+```
+~/.grind/
+├── vault.db          # Encrypted SQLite database
+├── config.json       # Settings + AES encryption key (keep this safe — losing it makes vault.db unrecoverable)
+├── timer.json        # Active timer state
+├── gateway.pid       # Gateway process PID (when running)
+└── themes/           # Custom theme files
+```
+
+## Config File
+
+`~/.grind/config.json` is created by `grindxp init`:
+
+```json
+{
+  "userId": "uuid",
+  "timezone": "America/New_York",
+  "companion": {
+    "provider": "anthropic",
+    "model": "claude-3-5-haiku-latest",
+    "name": "Max",
+    "trustLevel": 1
+  }
+}
+```
+
+The file also stores `encryptionKey` (the AES key for `vault.db`), `vaultPath`, and integration credentials. Do not commit it to source control.
+
+Most settings are managed via CLI commands (`grindxp setup`, `grindxp companion soul`) rather than editing the file directly.
+
+## Companion Settings
+
+Companion configuration is stored in two places:
+
+- **`~/.grind/config`**: provider, model, and name (read on startup)
+- **`companion_settings` table**: full settings including personality, trust level, and focus areas (read from vault)
+
+The vault record takes precedence. CLI commands write to both.
+
+## Migrating to a New Machine
+
+1. Copy `~/.grind/vault.db` to the new machine
+2. Copy `~/.grind/config.json` to the same path (contains encryption key — required for decryption)
+3. Install Grind and run `grindxp status` to verify
+
+Alternatively, enable Turso sync and pull the vault from the cloud on the new machine.
+
+## Vault Path Override
+
+To use a non-default vault location, set `GRIND_VAULT_PATH` before running any command:
+
+```bash
+GRIND_VAULT_PATH=/data/grind/vault.db grindxp status
+```
+
+This is useful for running multiple separate vaults (e.g., personal vs. work).

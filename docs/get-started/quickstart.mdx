@@ -1,0 +1,116 @@
+---
+title: "Quickstart"
+description: "Install Grind and complete your first quest in under 5 minutes."
+summary: "Step-by-step installation and first quest walkthrough."
+read_when:
+  - "User wants to install Grind"
+  - "User is setting up Grind for the first time"
+  - "User wants a quick getting-started walkthrough"
+---
+
+## Prerequisites
+
+- [Bun](https://bun.sh) v1.0+. Grind runs on Bun, not Node.
+- A terminal.
+
+## Install
+
+<Steps>
+  <Step title="Run the installer (recommended)">
+    <CodeGroup>
+      ```bash macOS-Linux-WSL2
+      curl -fsSL https://grindxp.app/install.sh | bash
+      ```
+
+      ```powershell Windows
+      iwr -useb https://grindxp.app/install.ps1 | iex
+      ```
+    </CodeGroup>
+
+    For other installation methods (npm, yarn, pnpm, or from source), see [Installation](/install).
+
+  </Step>
+  <Step title="Initialize your vault">
+    ```bash
+    grindxp init
+    ```
+
+    This runs the setup wizard. It will:
+    - Create `~/.grind/` (your config and vault directory)
+    - Generate an encryption key for your SQLite vault
+    - Create your user profile (name, timezone)
+    - Run database migrations
+
+    <Tip>
+      You can skip AI setup for now. Grind works fully without an API key. Add one later with `grindxp setup`.
+    </Tip>
+
+  </Step>
+  <Step title="Check your status">
+    ```bash
+    grindxp status
+    ```
+
+    You should see your character's level, XP, and an empty quest log.
+
+  </Step>
+  <Step title="Create your first quest">
+    ```bash
+    grindxp quest create
+    ```
+
+    The interactive wizard will ask for:
+    - **Title**: what you're doing
+    - **Type**: `daily`, `weekly`, `bounty`, `epic`, `chain`, or `ritual`
+    - **Difficulty**: `easy`, `medium`, `hard`, or `epic`
+    - **Skills**: which skill tags this quest contributes to
+
+  </Step>
+  <Step title="Complete it">
+    ```bash
+    grindxp complete
+    ```
+
+    Select your quest and self-report completion. You'll see XP awarded and skill progress updated.
+
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Open the TUI" icon="monitor" href="/tui">
+    Launch the terminal dashboard for a real-time view of your quests, skills, and XP. ```bash bun
+    tui ```
+  </Card>
+  <Card title="Set up your AI companion" icon="brain" href="/cli/companion">
+    Configure an AI provider to unlock the companion and agent features. ```bash grindxp setup ```
+  </Card>
+  <Card title="Start timer tracking" icon="timer" href="/cli/start">
+    Use `start` and `stop` to get a 1.5x XP proof bonus for timed work.
+  </Card>
+  <Card title="Automate with the Forge" icon="zap" href="/core/forge">
+    Create rules that watch your git activity, filesystem, or webhooks.
+  </Card>
+</CardGroup>
+
+## Environment Variables
+
+Grind reads configuration from `~/.grind/config` and environment variables. Copy `.env.example` to `.env` for development:
+
+```bash
+cp .env.example .env
+```
+
+Key variables:
+
+| Variable                       | Description                                        |
+| ------------------------------ | -------------------------------------------------- |
+| `GRIND_VAULT_PATH`             | Path to your vault directory (default: `~/.grind`) |
+| `GRIND_ENCRYPTION_KEY`         | AES key for vault encryption (generated on init)   |
+| `ANTHROPIC_API_KEY`            | Anthropic API key for the companion                |
+| `OPENAI_API_KEY`               | OpenAI API key (alternative)                       |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | Google Gemini API key (alternative)                |
+| `OLLAMA_BASE_URL`              | Ollama endpoint for local models                   |
+
+See [Environment Reference](/reference/env) for the full list.

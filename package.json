@@ -1,0 +1,30 @@
+{
+  "name": "grind",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "typecheck": "bun run --cwd packages/core typecheck && bun run --cwd packages/cli typecheck && bun run --cwd packages/tui typecheck && bun run --cwd apps/web typecheck && bun run --cwd apps/landing typecheck",
+    "lint": "oxlint .",
+    "format": "oxfmt --write .",
+    "db:generate": "bun run --cwd packages/core db:generate",
+    "db:migrate": "bun run --cwd packages/core db:migrate",
+    "db:push": "bun run --cwd packages/core db:push",
+    "cli": "bun run --cwd packages/cli start",
+    "tui": "bun run --cwd packages/tui start",
+    "chat": "bun run --cwd packages/tui chat",
+    "web": "bun run --cwd apps/web start",
+    "landing": "bun run --cwd apps/landing dev",
+    "docs": "cd docs && mint dev"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.9",
+    "oxfmt": "0.34.0",
+    "oxlint": "1.49.0",
+    "typescript": "5.9.3"
+  }
+}

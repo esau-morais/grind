@@ -1,0 +1,48 @@
+{
+  "name": "@grindxp/cli",
+  "version": "0.1.0",
+  "description": "Grind — a gamified productivity CLI. Track quests, earn XP, build streaks.",
+  "keywords": [
+    "cli",
+    "gamification",
+    "productivity",
+    "quests",
+    "streaks",
+    "xp"
+  ],
+  "homepage": "https://grindxp.app",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/esau-morais/grind.git"
+  },
+  "bin": {
+    "grindxp": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "start": "bun src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun --sourcemap=none --banner '#!/usr/bin/env bun' && chmod +x dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "bun run build && bun run typecheck"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.0.1",
+    "@grindxp/core": "workspace:*",
+    "@whiskeysockets/baileys": "7.0.0-rc.9",
+    "qrcode-terminal": "0.12.0"
+  },
+  "devDependencies": {
+    "@types/qrcode-terminal": "0.12.2"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}

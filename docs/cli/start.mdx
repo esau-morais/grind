@@ -1,0 +1,27 @@
+---
+title: "grindxp start"
+description: "Start a timer on a quest to earn a duration-based proof bonus."
+summary: "The start command begins a timer session on a quest. Timer-based completions get a 1.1–1.5x XP proof bonus."
+read_when:
+  - "User wants to track time spent on a quest"
+  - "User wants to earn a proof bonus via timer"
+---
+
+```bash
+grindxp start
+```
+
+Presents a list of `available` or `active` quests. Selecting one starts a timer session. The timer state is written to `~/.grind/timer.json`.
+
+Only one timer can run at a time. Starting a new timer while one is running will prompt you to stop the existing one first.
+
+## Proof Bonus
+
+| Elapsed                     | Proof Type    | Multiplier |
+| --------------------------- | ------------- | ---------- |
+| Any duration                | `duration`    | 1.1x       |
+| Combined with other signals | `multi-proof` | 1.5x       |
+
+## Related
+
+- [`stop`](/cli/stop): stop the running timer and record completion

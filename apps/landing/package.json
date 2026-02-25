@@ -1,0 +1,39 @@
+{
+  "name": "@grindxp/landing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --port 4321",
+    "start": "astro dev --port 4321",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/react": "^4.2.1",
+    "@astrojs/sitemap": "3.7.0",
+    "@phosphor-icons/react": "^2.1.7",
+    "@radix-ui/react-slot": "1.2.4",
+    "@resvg/resvg-js": "2.6.2",
+    "@tailwindcss/vite": "^4.1.18",
+    "astro": "^5.8.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "motion": "^12.12.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "satori": "0.19.2",
+    "tailwind-merge": "^3.0.2",
+    "tailwindcss": "^4.1.18",
+    "tw-animate-css": "^1.3.6"
+  },
+  "devDependencies": {
+    "@fontsource-variable/geist": "5.2.8",
+    "@fontsource-variable/jetbrains-mono": "5.2.8",
+    "@fontsource/instrument-serif": "5.2.8",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "typescript": "^5.7.2"
+  }
+}

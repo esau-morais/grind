@@ -1,0 +1,38 @@
+---
+title: "Web App"
+description: "Grind in the browser: dashboard, AI chat, and more."
+---
+
+The Grind web app runs locally and gives you a browser-based view of your data alongside a full AI companion chat.
+
+<CodeGroup>
+  ```bash installed
+  grindxp web start
+  ```
+
+```bash dev
+bun web
+```
+
+</CodeGroup>
+
+Then open [http://localhost:3000](http://localhost:3000).
+
+## Screens
+
+<CardGroup cols={2}>
+  <Card title="Dashboard" icon="layout-dashboard" href="/web/dashboard">
+    Live overview of your XP, active quests, skills, and recent activity.
+  </Card>
+  <Card title="Chat" icon="message-square" href="/web/chat">
+    AI companion chat with streaming responses and tool call visibility.
+  </Card>
+  <Card title="Quests" icon="list-checks" href="/web/quests">
+    Browse and manage all your quests.
+  </Card>
+  <Card title="Skills" icon="git-branch" href="/web/skills">
+    Skill tree with XP progress and level history.
+  </Card>
+</CardGroup>
+
+The web app reads from the same vault as the CLI and TUI, so everything stays in sync automatically.

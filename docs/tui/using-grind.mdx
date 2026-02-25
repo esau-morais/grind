@@ -1,0 +1,60 @@
+---
+title: "Terminal App"
+description: "The Grind terminal dashboard: a full-screen UI for your life OS."
+---
+
+<CodeGroup>
+  ```bash installed
+  grindxp
+  ```
+
+```bash dev
+bun tui
+```
+
+</CodeGroup>
+
+The TUI is a full-screen terminal app that gives you a live view of your quests, stats, and skill progress. It runs at 30fps and stays open while you work.
+
+## Keyboard Navigation
+
+| Key      | Screen              |
+| -------- | ------------------- |
+| `d`      | Dashboard           |
+| `q`      | Quests              |
+| `s`      | Skills              |
+| `c`      | Chat (AI companion) |
+| `r`      | Refresh             |
+| `Ctrl-C` | Quit                |
+
+## Dashboard
+
+The default screen when you open the TUI.
+
+**Left: Active Quests**
+
+All quests you've started. Each shows type, difficulty, streak count, and a running timer if one is active.
+
+**Right: Stats**
+
+Your character level, XP bar to next level, quests completed today, best active streak, and top skills.
+
+**Bottom: Completed Today**
+
+Everything you've logged today, with XP earned and the proof type that was recorded.
+
+## Quests
+
+Press `q` to see all your quests across every status (active, available, completed, failed, and abandoned). Quests are sorted by status, with active ones first.
+
+Each row shows the quest title, type badge, difficulty, current status, and streak count for habits.
+
+## Skills
+
+Press `s` to see your full skill tree. Every skill shows:
+
+- Current level
+- XP progress bar toward the next level
+- Total XP accumulated
+
+Skills are displayed with their hierarchy intact: parent skills at the top, children indented beneath.

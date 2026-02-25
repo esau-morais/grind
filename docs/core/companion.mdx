@@ -1,0 +1,90 @@
+---
+title: "Companion"
+description: "The AI companion system: trust ladder, provider registry, and context building."
+summary: "Companion module: trust levels, personality configuration, AI provider registry (Anthropic/OpenAI/Google/Ollama), system prompt generation, and context building."
+read_when:
+  - "Developer wants to understand the companion trust system"
+  - "User wants to configure their companion"
+  - "Developer wants to add a new AI provider"
+  - "User wants to understand what context the companion has access to"
+---
+
+The companion module lives in `packages/core/src/companion/`.
+
+## Trust Ladder
+
+Trust governs the companion's capabilities. It's stored in `companion_settings.trustLevel` as an integer 0–4.
+
+| Level | Name      | Capabilities                                    |
+| ----- | --------- | ----------------------------------------------- |
+| 0     | Watcher   | Read-only: observe quests and stats             |
+| 1     | Advisor   | Suggest actions, create reminders               |
+| 2     | Scribe    | Create quests, log entries, run read-only tools |
+| 3     | Agent     | Execute write tools (with user approval prompt) |
+| 4     | Sovereign | Full autonomy, no approval prompts              |
+
+Trust changes are logged to `trust_log` with a timestamp and reason.
+
+## Companion Settings
+
+Per-user companion settings:
+
+```typescript
+type CompanionSettings = {
+  userId: string;
+  provider: "anthropic" | "openai" | "google" | "ollama";
+  model: string;
+  name: string; // companion's name
+  personality: string; // personality description
+  trustLevel: 0 | 1 | 2 | 3 | 4;
+  focusAreas: string[]; // life domains to emphasize
+};
+```
+
+Settings are initialized by `createCompanionSettings` with sensible defaults. Update via `grindxp companion soul`.
+
+## AI Provider Registry
+
+`registry.ts` resolves the configured provider to a Vercel AI SDK model instance:
+
+```typescript
+import { resolveProvider } from "@grindxp/core/companion";
+
+const model = resolveProvider(settings);
+// → Anthropic / OpenAI / Google / Ollama model instance
+```
+
+Supported providers:
+
+| Provider  | Default model             | Notes                                  |
+| --------- | ------------------------- | -------------------------------------- |
+| Anthropic | `claude-3-5-haiku-latest` | Any Anthropic model string accepted    |
+| OpenAI    | `gpt-4o-mini`             | Any OpenAI model string accepted       |
+| Google    | `gemini-2.0-flash-exp`    | Any Google model string accepted       |
+| Ollama    | `llama3.1:8b`             | Any model running at `OLLAMA_BASE_URL` |
+
+## System Prompt
+
+`prompt.ts` generates the companion's system prompt dynamically from:
+
+- Companion name and personality
+- Trust level capabilities
+- User's current quest state
+- Active skill tree snapshot
+- Time of day and timezone
+
+The prompt is regenerated on each conversation start to reflect the current state.
+
+## Context Building
+
+`context.ts` assembles the context object passed to the agent:
+
+- User profile (level, XP, timezone)
+- Active quests
+- Quests completed today
+- Best streaks
+- Top skills
+- Recent quest log entries
+- Any pending forge signals
+
+This context is injected into the system prompt and kept updated across the conversation.

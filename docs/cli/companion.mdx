@@ -1,0 +1,51 @@
+---
+title: "grindxp companion"
+description: "View and configure your AI companion."
+summary: "Companion subcommands: show current companion settings, configure soul/personality, and view companion context."
+read_when:
+  - "User wants to see their companion configuration"
+  - "User wants to change the companion's personality"
+  - "User wants to understand the companion's context window"
+---
+
+## Subcommands
+
+### `companion show`
+
+```bash
+grindxp companion show
+```
+
+Displays your current companion settings:
+
+- Provider and model
+- Trust level (0–4) and name
+- Personality configuration
+- Last interaction time
+
+### `companion soul`
+
+```bash
+grindxp companion soul
+```
+
+Configure the companion's personality and behavior:
+
+- **Name**: what to call your companion
+- **Personality**: character traits and communication style
+- **Focus areas**: which life domains to emphasize
+- **Trust level**: how much autonomy to grant
+
+### `companion context`
+
+```bash
+grindxp companion context
+```
+
+Shows what context the companion currently has access to: your active quests, recent completions, skill levels, and a system prompt preview.
+
+## Related
+
+- [Companion](/core/companion): trust system and AI provider details
+- [`setup`](/cli/setup): configure the underlying AI provider
+- [TUI Chat](/tui/chat): interactive companion chat session

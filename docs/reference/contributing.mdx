@@ -1,0 +1,100 @@
+---
+title: "Contributing"
+description: "How to set up a development environment and contribute to Grind."
+summary: "Development setup guide: prerequisites, monorepo structure, running packages in dev mode, adding features, and code style guidelines."
+read_when:
+  - "Developer wants to contribute to Grind"
+  - "Developer is setting up a local development environment"
+  - "Developer wants to understand code style and conventions"
+---
+
+## Prerequisites
+
+- [Bun](https://bun.sh) v1.0+
+- Node.js v20+ (for the Mintlify CLI only)
+- Git
+
+## Setup
+
+```bash
+git clone https://github.com/esau-morais/grind
+cd grind
+bun install
+cp .env.example .env
+# Edit .env with your vault path and API keys
+bun cli init
+```
+
+<Note>
+  **Bun is required for development.** npm, yarn, and pnpm won't work for this monorepo. We use
+  Bun's workspaces and native TypeScript support to streamline development.
+</Note>
+
+## Running Packages
+
+| Command               | Description                          |
+| --------------------- | ------------------------------------ |
+| `bun cli <cmd>`       | Run the CLI                          |
+| `bun tui`             | Launch the TUI                       |
+| `bun web`             | Start the web dev server             |
+| `bun run typecheck`   | TypeScript type check (all packages) |
+| `bun run lint`        | OXC lint                             |
+| `bun run format`      | OXC format                           |
+| `bun run db:generate` | Generate a new Drizzle migration     |
+| `bun run db:migrate`  | Apply migrations locally             |
+
+## Code Style
+
+Grind uses [OXC](https://oxc.rs) (`oxfmt` for formatting, `oxlint` for linting).
+
+- 2-space indent, single quotes, semicolons, 100-char line width
+- Run `bun run format` before committing
+
+### TypeScript Conventions
+
+- `exactOptionalPropertyTypes: true` is enforced. Never assign `undefined` to optional properties. Use spread conditionals:
+  ```typescript
+  // Correct
+  const obj = { ...(value !== undefined && { prop: value }) };
+  ```
+- `noUncheckedIndexedAccess: true`: always null-check array access
+- `verbatimModuleSyntax: true`: use `import type` for type-only imports
+
+### File Organization
+
+- Domain logic → `packages/core/src/`
+- CLI commands → `packages/cli/src/commands/`
+- TUI screens → `packages/tui/src/screens/`
+- Web routes → `apps/web/src/routes/`
+
+Never import from `packages/cli`, `packages/tui`, or `packages/web` inside `packages/core`. The dependency arrow is one-way: `cli/tui/web → core`.
+
+## Adding a New CLI Command
+
+1. Create `packages/cli/src/commands/my-command.ts`
+2. Export a default `async function myCommand()` that uses Clack for prompts
+3. Register it in `packages/cli/src/index.ts`
+
+## Adding a New Agent Tool
+
+1. Define the tool in `packages/core/src/agent/tools.ts` using the Vercel AI SDK `tool()` helper
+2. Add a permission check if write access is required
+3. Add it to the `tools` object in `runAgent`
+4. Add rendering in `packages/tui/src/ChatApp.tsx`
+
+## Adding a Database Table
+
+1. Add the table definition to `packages/core/src/vault/schema.ts`
+2. Run `bun run db:generate` to create the migration
+3. Create a repository in `packages/core/src/vault/repositories/`
+4. Export the repository from `packages/core/src/vault/index.ts`
+
+## Documentation
+
+Docs live in `docs/`. To run the docs locally:
+
+```bash
+mint dev
+```
+
+Preview at `http://localhost:3000`.

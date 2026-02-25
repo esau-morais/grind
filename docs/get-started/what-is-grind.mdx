@@ -1,0 +1,79 @@
+---
+title: "What is Grind?"
+description: "How Grind turns your habits and goals into a game, and why that works."
+---
+
+Grind is a personal operating system for your life. It turns the things you want to do (exercise, study, build, create) into **quests** with XP rewards, skill trees, and streaks. The game mechanics are real: every number is calculated transparently, and all your data lives on your machine.
+
+## How it works
+
+You create quests for the things you want to build into your life. Completing them earns XP: for your character overall, and for the specific skills that quest exercises. Do it consistently and your streak multiplies the reward. Prove you did it (with a timer, a git commit, or a message) and the proof multiplies it further.
+
+Your **AI companion** knows your quests, your progress, and your history. Ask it anything, let it suggest what to work on, or give it the autonomy to log things automatically.
+
+The **Forge** is an automation engine. It watches signals (a git push, a file change, a message from Telegram) and can complete quests, award XP, or send reminders without you doing anything.
+
+## Quests
+
+A quest is a structured goal. There are six types:
+
+| Type     | Use for                               |
+| -------- | ------------------------------------- |
+| `daily`  | Habits, resets every day              |
+| `weekly` | Recurring goals, resets every week    |
+| `epic`   | Big projects with multiple milestones |
+| `bounty` | One-off tasks                         |
+| `chain`  | Sequential tasks that unlock in order |
+| `ritual` | Scheduled recurring work              |
+
+Quests have four difficulties (`easy`, `medium`, `hard`, `epic`) that multiply the XP reward.
+
+## XP & Skills
+
+XP is earned on every completion. The amount depends on what you did, how hard it was, how consistently you've been doing it, and how well you can prove it.
+
+Skills form a tree: Health, Fitness, Strength; Mind, Focus, Learning. A quest can feed multiple skills. Each skill has its own level, separate from your overall character level.
+
+## Streaks
+
+Consecutive completions build streaks. They have names and XP bonuses:
+
+| Days  | Name         | Bonus |
+| ----- | ------------ | ----- |
+| 3–6   | Spark        | +10%  |
+| 7–13  | Flame        | +20%  |
+| 14–29 | Blaze        | +30%  |
+| 30–59 | Inferno      | +40%  |
+| 60–99 | Wildfire     | +45%  |
+| 100+  | Eternal Fire | +50%  |
+
+Miss a day and your streak breaks, unless you have a streak shield, which absorbs one missed day and keeps the counter alive.
+
+## Proof
+
+Every completion records a proof type. The better the proof, the more XP you earn:
+
+| Proof                | Multiplier | How                                       |
+| -------------------- | ---------- | ----------------------------------------- |
+| Self-report          | 1.0x       | Just clicking complete                    |
+| Timer                | 1.1x       | You ran a timer during the quest          |
+| Process / file / git | 1.2–1.3x   | Forge detected the activity automatically |
+| AI-verified          | 1.4x       | Your companion confirmed it               |
+| Multi-proof          | 1.5x       | Multiple signals combined                 |
+
+The Forge can generate multi-proof automatically by combining a running timer, a git commit, and a process check, with no extra steps from you.
+
+## Your AI Companion
+
+The companion starts in observation mode and earns capabilities as trust increases. At its simplest, it answers questions and suggests quests. At its most capable, it can manage your schedule autonomously.
+
+See [Your AI Companion](/companion/overview) for the full trust ladder and setup guide.
+
+## Where you can use Grind
+
+| Surface                       | How to launch       |
+| ----------------------------- | ------------------- |
+| Terminal dashboard            | `grindxp`           |
+| CLI                           | `grindxp <command>` |
+| Web app                       | `grindxp web start` |
+| Telegram / Discord / WhatsApp | Via the gateway     |

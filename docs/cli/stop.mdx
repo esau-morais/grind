@@ -1,0 +1,26 @@
+---
+title: "grindxp stop"
+description: "Stop the running timer and optionally complete the quest."
+summary: "The stop command ends the active timer session. It prompts whether to mark the quest complete and records a duration-based proof."
+read_when:
+  - "User wants to stop a running timer"
+  - "User finished working on a timed quest"
+---
+
+```bash
+grindxp stop
+```
+
+Reads the active timer from `~/.grind/timer.json`, calculates elapsed time, and prompts:
+
+1. **Complete the quest?** Yes logs a `duration` proof and awards XP. No just clears the timer.
+2. If completing, optionally adds a note to the completion log.
+
+## XP Awarded
+
+The elapsed duration is recorded as a `duration` proof (1.1x multiplier). If the Forge also detected git activity or a running process during the session, the proof may be upgraded to `multi-proof` (1.5x).
+
+## Related
+
+- [`start`](/cli/start): start the timer
+- [`complete`](/cli/complete): self-report completion without a timer (1.0x)

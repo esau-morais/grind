@@ -1,0 +1,69 @@
+---
+title: "Chat Screen"
+description: "Streaming AI companion chat with tool call rendering and session management."
+summary: "The TUI chat screen provides a full streaming AI companion interface: tool call rendering, slash commands, session management, context compaction, image attachments, and permission prompts."
+read_when:
+  - "User wants to chat with their AI companion"
+  - "User wants to know what slash commands are available in chat"
+  - "User is confused about tool call prompts or permission dialogs"
+  - "User wants to manage chat sessions or compact context"
+---
+
+Press `c` to open the chat screen.
+
+## Interface
+
+The chat screen is a full terminal chat application:
+
+- **Message history**: scrollable conversation with the companion
+- **Tool call rendering**: tool invocations and results are displayed inline as collapsible blocks
+- **Streaming**: responses stream in real-time, token by token
+- **Input**: bottom-of-screen input with Enter to send
+
+## Slash Commands
+
+Type `/` to access slash commands:
+
+| Command        | Description                                       |
+| -------------- | ------------------------------------------------- |
+| `/new`         | Start a new conversation session                  |
+| `/sessions`    | Browse and switch between saved sessions          |
+| `/clear`       | Clear current conversation display                |
+| `/compact`     | Manually compact the context window               |
+| `/autocompact` | Toggle automatic context compaction               |
+| `/usage`       | Show token usage for current session              |
+| `/model`       | Switch AI model                                   |
+| `/theme`       | Switch TUI theme                                  |
+| `/thinking`    | Set extended thinking depth (off/low/medium/high) |
+| `/think`       | Toggle thinking mode                              |
+| `/help`        | Show all slash commands                           |
+
+## Tool Permissions
+
+When the companion invokes a tool that requires approval (bash, file write, file edit), a permission prompt appears:
+
+```
+┌─ Tool Approval Required ─────────────────────────────┐
+│ bash: git log --oneline -10                          │
+│                                                      │
+│ [Allow Once]  [Allow Session]  [Deny]                │
+└──────────────────────────────────────────────────────┘
+```
+
+- **Allow Once**: permits this single invocation
+- **Allow Session**: permits this tool for the rest of the session
+- **Deny**: rejects and tells the companion it was denied
+
+At trust level 4 (Sovereign), no approval prompts appear.
+
+## Context Compaction
+
+When the conversation fills the model's context window, Grind automatically summarizes older messages into a compact summary. You'll see a notice when compaction occurs. Manual compaction is available via `/compact`.
+
+## Image Attachments
+
+Attach images to messages by pasting them or using the image attach shortcut. The companion can analyze images using vision-capable models (Claude, GPT-4o, Gemini).
+
+## Sessions
+
+Conversations are persisted to the vault (`conversations` and `messages` tables). Use `/sessions` to browse past conversations and `/new` to start fresh while keeping history accessible.

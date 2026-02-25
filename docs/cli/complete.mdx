@@ -1,0 +1,28 @@
+---
+title: "grindxp complete"
+description: "Mark a quest complete via self-report."
+summary: "The complete command marks a quest as done. Uses self-report proof (1.0x XP). For higher XP, use start/stop timer-based tracking."
+read_when:
+  - "User wants to mark a quest as done"
+  - "User completed a quest without using the timer"
+---
+
+```bash
+grindxp complete
+```
+
+Presents a list of `available` and `active` quests. Selecting one marks it `completed` and awards XP using a `self-report` proof (1.0x multiplier).
+
+For higher XP:
+
+- Use [`start`](/cli/start) + [`stop`](/cli/stop) to get a `duration` proof (1.1x)
+- Let the Forge auto-complete via signals for `multi-proof` (1.5x)
+
+## What Happens on Completion
+
+1. Quest status → `completed`
+2. Streak incremented (for `daily` / `weekly` quests)
+3. XP calculated: `base_xp × difficulty × streak_bonus × proof_bonus`
+4. XP awarded to character
+5. XP distributed to all tagged skills
+6. Completion logged to `quest_logs`

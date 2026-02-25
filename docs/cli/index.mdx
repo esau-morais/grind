@@ -1,0 +1,62 @@
+---
+title: "CLI Overview"
+description: "All Grind CLI commands: quick reference and usage notes."
+summary: "Complete CLI command reference: status, dashboard, quest, start/stop, complete, log, forge, gateway, companion, setup, integrations, and init."
+read_when:
+  - "User wants to know what CLI commands are available"
+  - "User wants the syntax for a specific command"
+  - "User wants a quick reference for status, dashboard, or log commands"
+---
+
+```bash
+grindxp <command> [subcommand]
+```
+
+All commands open the vault at `~/.grind/vault.db` on startup. Run `grindxp init` first if the vault doesn't exist yet.
+
+---
+
+## Quick Commands
+
+### `status`
+
+```bash
+grindxp status
+```
+
+Snapshot of your current state: character level, XP bar, active quests, best streak, and top skills.
+
+### `dashboard`
+
+```bash
+grindxp dashboard
+```
+
+Time-aware overview. Output adapts to time of day: morning shows today's quests and streak status, evening shows what you completed and XP earned.
+
+For a persistent real-time view, use `grindxp` (the TUI) instead.
+
+### `log`
+
+```bash
+grindxp log
+```
+
+Record a quick activity without creating a full quest. Prompts for description, optional skill tags, and optional duration. XP flows to tagged skills. Use this for one-offs; create a proper quest for recurring behaviors to get streak bonuses.
+
+---
+
+## Command Reference
+
+| Command                             | Description                                                     |
+| ----------------------------------- | --------------------------------------------------------------- |
+| [`init`](/cli/init)                 | First-time setup: creates vault, encryption key, user profile   |
+| [`setup`](/cli/setup)               | Configure AI provider and model                                 |
+| [`quest`](/cli/quest)               | Create, list, and abandon quests                                |
+| [`start`](/cli/start)               | Start a timer on a quest (earns duration proof bonus)           |
+| [`stop`](/cli/stop)                 | Stop the running timer, optionally complete the quest           |
+| [`complete`](/cli/complete)         | Mark a quest complete via self-report                           |
+| [`forge`](/cli/forge)               | Create/list/toggle automation rules; run daemon                 |
+| [`gateway`](/cli/gateway)           | Start/stop/restart the webhook gateway server                   |
+| [`companion`](/cli/companion)       | View and configure your AI companion                            |
+| [`integrations`](/cli/integrations) | Manage Telegram, Discord, WhatsApp, Google Calendar credentials |

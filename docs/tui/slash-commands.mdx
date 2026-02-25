@@ -1,0 +1,53 @@
+---
+title: "Slash Commands"
+description: "Full reference for all TUI chat slash commands."
+summary: "Complete list of slash commands available in the TUI chat screen with descriptions and usage."
+read_when:
+  - "User wants a quick reference for slash commands"
+  - "User wants to know what /compact or /autocompact does"
+  - "User wants to switch models from within the TUI"
+---
+
+All slash commands are available in the [Chat screen](/tui/chat). Type `/` to see the command list inline.
+
+## Session Management
+
+| Command     | Description                                                 |
+| ----------- | ----------------------------------------------------------- |
+| `/new`      | Start a new conversation, preserving history                |
+| `/sessions` | Browse and switch between saved conversations               |
+| `/clear`    | Clear the visible conversation (does not delete from vault) |
+
+## Context
+
+| Command        | Description                                                       |
+| -------------- | ----------------------------------------------------------------- |
+| `/compact`     | Immediately summarize older messages to free context window space |
+| `/autocompact` | Toggle automatic compaction when context window is nearly full    |
+| `/usage`       | Show token count for the current session (input, output, cache)   |
+
+## Model & AI
+
+| Command     | Description                                                 |
+| ----------- | ----------------------------------------------------------- |
+| `/model`    | Switch the active AI model                                  |
+| `/thinking` | Set extended thinking depth: `off`, `low`, `medium`, `high` |
+| `/think`    | Toggle extended thinking on/off                             |
+
+## Interface
+
+| Command  | Description                       |
+| -------- | --------------------------------- |
+| `/theme` | Switch the TUI color theme        |
+| `/help`  | Show all available slash commands |
+
+## Thinking Levels
+
+Extended thinking (Anthropic Claude only) lets the model reason step-by-step before responding. Higher levels use more tokens but produce more thorough analysis.
+
+| Level    | Budget Tokens |
+| -------- | ------------- |
+| `off`    | 0             |
+| `low`    | 2,000         |
+| `medium` | 8,000         |
+| `high`   | 20,000        |

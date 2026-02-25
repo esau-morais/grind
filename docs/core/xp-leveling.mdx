@@ -1,0 +1,90 @@
+---
+title: "XP & Leveling"
+description: "How XP is calculated, how levels are derived, and the math behind multipliers."
+summary: "XP calculation formula, difficulty multipliers, streak bonuses, proof bonuses, level curve, and skill-level curve."
+read_when:
+  - "User wants to understand how XP is calculated"
+  - "User wants to know how many XP are needed for the next level"
+  - "Developer wants to call the XP calculator directly"
+---
+
+XP calculation is deterministic and pure. The calculator lives in `packages/core/src/xp/calculator.ts`.
+
+## Formula
+
+```
+final_xp = base_xp × difficulty_multiplier × streak_multiplier × proof_multiplier
+```
+
+All multipliers are applied multiplicatively, not additively.
+
+## Difficulty Multipliers
+
+| Difficulty | Multiplier |
+| ---------- | ---------- |
+| `easy`     | 1.0        |
+| `medium`   | 1.5        |
+| `hard`     | 2.0        |
+| `epic`     | 3.0        |
+
+## Streak Multipliers
+
+| Streak Days | Tier         | Multiplier |
+| ----------- | ------------ | ---------- |
+| 0–2         | None         | 1.00       |
+| 3–6         | Spark        | 1.10       |
+| 7–13        | Flame        | 1.20       |
+| 14–29       | Blaze        | 1.30       |
+| 30–59       | Inferno      | 1.40       |
+| 60–99       | Wildfire     | 1.45       |
+| 100+        | Eternal Fire | 1.50       |
+
+## Proof Multipliers
+
+| Proof Type       | Multiplier |
+| ---------------- | ---------- |
+| `self-report`    | 1.00       |
+| `timestamp`      | 1.05       |
+| `duration`       | 1.10       |
+| `process-check`  | 1.20       |
+| `file-change`    | 1.20       |
+| `git-commit`     | 1.30       |
+| `screenshot`     | 1.30       |
+| `calendar-match` | 1.30       |
+| `ai-verify`      | 1.40       |
+| `multi-proof`    | 1.50       |
+
+## Level Curve
+
+Character level uses an exponential curve. Early levels are fast; later levels require significantly more XP:
+
+```typescript
+levelFromXp(xp: number): number
+```
+
+The curve is defined in `xp/constants.ts` as a threshold array. Level 1 requires ~100 XP; each subsequent level requires ~20% more than the previous.
+
+## Skill Level Curve
+
+Skill levels use the same curve shape as character levels but with independent counters. A skill's level reflects only XP earned from quests tagged with that skill.
+
+```typescript
+skillLevelFromXp(xp: number): number
+```
+
+## Using the Calculator
+
+```typescript
+import { calculateXp, levelFromXp, skillLevelFromXp } from "@grindxp/core/xp";
+
+const xp = calculateXp({
+  baseXp: 100,
+  difficulty: "hard",
+  streakDays: 14,
+  proofType: "git-commit",
+});
+// → 100 × 2.0 × 1.30 × 1.30 = 338
+
+const level = levelFromXp(totalXp);
+const skillLevel = skillLevelFromXp(skillXp);
+```

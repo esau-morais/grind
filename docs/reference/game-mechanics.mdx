@@ -1,0 +1,64 @@
+---
+title: "Game Mechanics"
+description: "XP calculation transparency, level curve approximations, and quest state transitions."
+summary: "Precise XP calculation examples, maximum possible XP, level curve thresholds, and quest status transition rules."
+read_when:
+  - "User wants to verify exactly how XP was calculated for a specific completion"
+  - "User wants to know how many XP are needed for a given level"
+  - "Developer is implementing a feature that depends on game constants"
+---
+
+## XP Calculation
+
+All multipliers are applied multiplicatively:
+
+```
+final_xp = base_xp × difficulty × streak × proof
+```
+
+### Example: Best-case completion
+
+Epic difficulty quest, 100-day streak, multi-proof (Forge-automated):
+
+```
+100 base × 3.0 (epic) × 1.50 (eternal fire) × 1.50 (multi-proof)
+= 675 XP
+```
+
+### Example: Typical daily habit
+
+Medium difficulty quest, 14-day streak, self-report:
+
+```
+50 base × 1.5 (medium) × 1.30 (blaze) × 1.00 (self-report)
+= 97 XP
+```
+
+The maximum multiplier stack is **6.75×** (`epic` + `eternal fire` + `multi-proof`).
+
+## Level Curve
+
+Character level follows an exponential threshold curve. Approximate thresholds:
+
+| Level | Total XP Required |
+| ----- | ----------------- |
+| 1     | 0                 |
+| 2     | 100               |
+| 5     | 550               |
+| 10    | 1,600             |
+| 20    | 6,000             |
+| 50    | 50,000            |
+| 100   | 250,000           |
+
+Skills use the same curve, tracked independently per skill.
+
+## Quest Status Transitions
+
+| From        | To          | Trigger                            |
+| ----------- | ----------- | ---------------------------------- |
+| `available` | `active`    | `start` command or timer start     |
+| `available` | `completed` | Direct complete (bounty only)      |
+| `active`    | `completed` | `complete` command or Forge action |
+| `active`    | `failed`    | Deadline passed                    |
+| `active`    | `abandoned` | `abandon` command                  |
+| `completed` | `available` | Daily/weekly reset at midnight     |

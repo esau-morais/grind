@@ -1,0 +1,141 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+  publish-npm:
+    needs: [typecheck]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        working-directory: packages/cli
+        run: bun run build
+
+      - name: Publish to npm
+        working-directory: packages/cli
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"
+          bun publish --no-git-checks --provenance
+
+  build-binaries:
+    needs: [typecheck]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: bun-linux-x64
+            os: linux
+            arch: x64
+            runner: ubuntu-latest
+          - target: bun-linux-arm64
+            os: linux
+            arch: arm64
+            runner: ubuntu-latest
+          - target: bun-darwin-x64
+            os: darwin
+            arch: x64
+            runner: macos-latest
+          - target: bun-darwin-arm64
+            os: darwin
+            arch: arm64
+            runner: macos-latest
+          - target: bun-windows-x64
+            os: windows
+            arch: x64
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Compile binary
+        shell: bash
+        env:
+          GRIND_GOOGLE_CLIENT_SECRET: ${{ secrets.GRIND_GOOGLE_CLIENT_SECRET }}
+        run: |
+          OUTFILE="grind-${{ matrix.os }}-${{ matrix.arch }}"
+          if [[ "${{ matrix.os }}" == "windows" ]]; then
+            OUTFILE="${OUTFILE}.exe"
+          fi
+          bun build packages/cli/src/index.ts \
+            --compile \
+            --target=${{ matrix.target }} \
+            --define "process.env.GRIND_GOOGLE_CLIENT_SECRET='${GRIND_GOOGLE_CLIENT_SECRET}'" \
+            --outfile "dist/${OUTFILE}"
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: grind-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/grind-${{ matrix.os }}-${{ matrix.arch }}*
+          if-no-files-found: error
+
+  create-release:
+    needs: [publish-npm, build-binaries]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: Resolve version
+        id: version
+        run: echo "value=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.value }}"
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --generate-notes \
+            dist/grind-*

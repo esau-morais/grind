@@ -1,0 +1,8 @@
+**/*.test.ts
+src/test-helpers.ts
+drizzle.config.ts
+tsconfig.json
+drizzle/
+dist/
+node_modules/
+.env*

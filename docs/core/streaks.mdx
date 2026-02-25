@@ -1,0 +1,56 @@
+---
+title: "Streaks"
+description: "How streaks are tracked, tiered, broken, and protected by shields."
+summary: "Streak mechanics: per-quest tracking, tier thresholds, XP bonus calculation, streak breaking penalties, and streak shields."
+read_when:
+  - "User wants to understand how streaks work"
+  - "User wants to know the streak tier names and thresholds"
+  - "User wants to know about streak shields"
+  - "Developer wants to work with the streak module"
+---
+
+The streak module lives in `packages/core/src/streak.ts`.
+
+## Per-Quest Streaks
+
+Streaks are tracked independently per quest, not globally. Each `daily` quest has its own counter. Each `weekly` quest has its own counter.
+
+The counter lives on the quest record: `streakCurrent` and `streakBest`.
+
+## Tiers
+
+| Consecutive Days | Tier Name    | XP Bonus |
+| ---------------- | ------------ | -------- |
+| 0–2              | —            | +0%      |
+| 3–6              | Spark        | +10%     |
+| 7–13             | Flame        | +20%     |
+| 14–29            | Blaze        | +30%     |
+| 30–59            | Inferno      | +40%     |
+| 60–99            | Wildfire     | +45%     |
+| 100+             | Eternal Fire | +50%     |
+
+`streakTier(days)` returns the tier name and XP multiplier for any day count.
+
+## Breaking a Streak
+
+A streak breaks when a daily quest is not completed before midnight (in the user's configured timezone). The scheduler calls `resetQuestStreak` when this happens:
+
+1. `streakCurrent` resets to 0
+2. A "broken streak" penalty note is logged
+3. Any shield is consumed before breaking (see below)
+
+## Streak Shields
+
+Shields protect against a single missed day. When a streak would break, Grind first checks for an available shield. If one exists, it is consumed and the streak is preserved.
+
+Shields are earned by maintaining long streaks. The threshold and maximum shield count are defined in `streak.ts`.
+
+## API
+
+```typescript
+import { streakTier, streakMultiplier, hasStreakShield } from "@grindxp/core";
+
+const tier = streakTier(21); // → { name: 'Blaze', days: 21 }
+const mult = streakMultiplier(21); // → 1.30
+const shielded = hasStreakShield(quest); // → boolean
+```

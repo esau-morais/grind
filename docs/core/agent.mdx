@@ -1,0 +1,113 @@
+---
+title: "Agent"
+description: "The streaming agent runtime: how tool calls, streaming, and sessions work."
+summary: "Agent module: runAgent async generator, tool definitions and permission system, session persistence, context compaction, and OAuth flow."
+read_when:
+  - "Developer wants to understand how the agent streaming loop works"
+  - "Developer wants to add a new tool to the agent"
+  - "User wants to understand what tools the companion can use"
+  - "Developer wants to integrate the agent into a new interface"
+---
+
+The agent module lives in `packages/core/src/agent/`.
+
+## `runAgent`
+
+The entry point is `runAgent`, an async generator that yields typed events:
+
+```typescript
+import { runAgent } from "@grindxp/core/agent";
+
+for await (const event of runAgent({ messages, settings, db })) {
+  switch (event.type) {
+    case "text-delta": // streaming text token
+    case "tool-call": // tool invocation started
+    case "tool-result": // tool result returned
+    case "reasoning": // extended thinking step
+    case "usage": // token usage summary
+    case "error": // error occurred
+    case "done": // stream complete
+  }
+}
+```
+
+The TUI's `ChatApp.tsx` and the CLI's chat command both consume this generator.
+
+## Tools
+
+The agent has access to 18 tools defined in `agent/tools.ts`. Tools are divided by capability level:
+
+### Quest & Life OS Tools (always available)
+
+| Tool               | Description                                          |
+| ------------------ | ---------------------------------------------------- |
+| `create_quest`     | Create a new quest                                   |
+| `complete_quest`   | Complete a quest                                     |
+| `start_timer`      | Start a timer on a quest                             |
+| `stop_timer`       | Stop the running timer                               |
+| `abandon_quest`    | Abandon a quest                                      |
+| `list_quests`      | List quests with filtering                           |
+| `get_status`       | Get character stats and overview                     |
+| `analyze_patterns` | Analyze completion patterns and suggest improvements |
+| `suggest_quest`    | Suggest new quests based on goals                    |
+
+### System Tools (require trust level ≥ 2)
+
+| Tool         | Permission Required |
+| ------------ | ------------------- |
+| `read_file`  | Trust ≥ 2           |
+| `glob`       | Trust ≥ 2           |
+| `grep`       | Trust ≥ 2           |
+| `fetch_url`  | Trust ≥ 2           |
+| `web_search` | Trust ≥ 2           |
+
+### Write Tools (require trust level ≥ 3, user approval at level 3)
+
+| Tool         | Permission Required |
+| ------------ | ------------------- |
+| `write_file` | Trust ≥ 3           |
+| `edit_file`  | Trust ≥ 3           |
+| `bash`       | Trust ≥ 3           |
+
+At trust level 3 (Agent), write tools prompt the user for approval. At trust level 4 (Sovereign), no approval is needed.
+
+## Session Persistence
+
+`agent/sessions.ts` handles conversation persistence:
+
+- Messages are stored in the `messages` table
+- Each conversation has a record in `conversations`
+- `appendMessage` adds each new message atomically
+- `loadSession` reconstructs the message history for a conversation
+- `compactSession` summarizes older messages when the context window fills
+
+## Context Compaction
+
+`agent/compaction.ts` implements context window management:
+
+1. When token usage exceeds a threshold, compaction is triggered
+2. The oldest messages (excluding the system prompt) are summarized
+3. The summary replaces the compacted messages
+4. Conversation continues with the summary in context
+
+Manual compaction is available via `/compact` in the TUI.
+
+## Extended Thinking
+
+For Anthropic models, extended thinking (chain-of-thought) is supported:
+
+```typescript
+runAgent({
+  ...,
+  thinking: { type: 'enabled', budgetTokens: 8000 }
+})
+```
+
+Thinking tokens are streamed as `reasoning` events and displayed separately in the TUI.
+
+## Adding a New Tool
+
+1. Define the tool in `agent/tools.ts` using Vercel AI SDK's `tool()` helper
+2. Add a permission check if it requires elevated trust
+3. Add the tool to the `tools` object passed to `generateText` / `streamText`
+4. Add rendering logic in the TUI's `ChatApp.tsx` for tool call display

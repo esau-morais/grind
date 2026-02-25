@@ -1,0 +1,86 @@
+---
+title: "Gateway"
+description: "The webhook ingestion server: endpoints, signature verification, and signal normalization."
+summary: "Gateway server: HTTP endpoints, per-integration signature verification (Discord Ed25519, WhatsApp HMAC), and the signal normalization pipeline."
+read_when:
+  - "Developer wants to understand how webhooks are received and verified"
+  - "User is setting up a webhook integration and needs endpoint details"
+  - "Developer wants to add a new webhook source"
+---
+
+The gateway is a Bun HTTP server (`Bun.serve`) defined in `packages/core/src/gateway/server.ts`. It normalizes incoming webhooks from five sources into a unified `Signal` format stored in the `signals` table for the Forge to process.
+
+## Endpoints
+
+| Method | Path                     | Integration                                                 |
+| ------ | ------------------------ | ----------------------------------------------------------- |
+| `GET`  | `/health`                | Health check, returns `{ status: 'ok' }`                    |
+| `POST` | `/hooks/inbound`         | Generic inbound signal (HMAC-verified via `GATEWAY_SECRET`) |
+| `POST` | `/hooks/telegram`        | Telegram Bot API updates                                    |
+| `POST` | `/hooks/discord`         | Discord interactions (Ed25519 signature verification)       |
+| `POST` | `/hooks/google-calendar` | Google Calendar push notifications                          |
+| `POST` | `/hooks/whatsapp`        | WhatsApp Cloud API (HMAC-SHA256 signature verification)     |
+
+WhatsApp also handles `GET /hooks/whatsapp` for the webhook verification challenge.
+
+## Signature Verification
+
+### Discord
+
+Discord uses Ed25519 signatures verified with the Web Crypto API:
+
+```typescript
+const isValid = await crypto.subtle.verify("Ed25519", publicKey, signature, body);
+```
+
+Key is read from `DISCORD_PUBLIC_KEY`. Requests failing verification return 401.
+
+### WhatsApp Cloud API
+
+WhatsApp signs payloads with HMAC-SHA256 using the app secret:
+
+```typescript
+const expectedSig = `sha256=${hmacSha256(WHATSAPP_APP_SECRET, rawBody)}`;
+const isValid = timingSafeEqual(expectedSig, xHubSignature);
+```
+
+### Telegram
+
+Telegram does not sign individual payloads. The bot token in the webhook URL path acts as the secret.
+
+## Signal Normalization
+
+`gateway/normalize.ts` converts each platform's payload into a unified `Signal`:
+
+```typescript
+type Signal = {
+  id: string;
+  source: "telegram" | "discord" | "whatsapp" | "google-calendar" | "inbound";
+  type: string;
+  payload: unknown;
+  normalizedText?: string;
+  senderId?: string;
+  channelId?: string;
+  timestamp: number;
+};
+```
+
+Signals are stored to the `signals` table and consumed by the Forge daemon on its next tick.
+
+## Configuration
+
+| Variable                        | Description                          |
+| ------------------------------- | ------------------------------------ |
+| `GATEWAY_PORT`                  | Port to listen on (default: `3001`)  |
+| `GATEWAY_SECRET`                | HMAC secret for `/hooks/inbound`     |
+| `TELEGRAM_BOT_TOKEN`            | Telegram bot token                   |
+| `DISCORD_PUBLIC_KEY`            | Discord app public key for Ed25519   |
+| `WHATSAPP_APP_SECRET`           | WhatsApp app secret for HMAC         |
+| `GOOGLE_CALENDAR_WEBHOOK_TOKEN` | Token for calendar push verification |
+
+## Adding a New Webhook Source
+
+1. Add a new endpoint case in `gateway/server.ts`
+2. Implement signature verification if required
+3. Add a normalizer in `gateway/normalize.ts`
+4. Handle the new signal type in `forge/engine.ts`

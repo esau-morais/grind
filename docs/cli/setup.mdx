@@ -1,0 +1,45 @@
+---
+title: "grindxp setup"
+description: "Configure your AI provider and model."
+summary: "The setup command walks through AI provider configuration: provider selection, API key, model choice, and companion name."
+read_when:
+  - "User wants to configure an AI provider"
+  - "User wants to switch from one AI provider to another"
+  - "User wants to set their default model"
+---
+
+```bash
+grindxp setup
+```
+
+Interactive wizard to configure the AI companion:
+
+<Steps>
+  <Step title="Select provider">
+    Choose from: `anthropic`, `openai`, `google`, or `ollama` (local).
+  </Step>
+  <Step title="Enter API key">
+    Paste your API key. For Ollama, enter the base URL instead (default:
+    `http://localhost:11434/v1`).
+  </Step>
+  <Step title="Select model">Choose from available models for the selected provider.</Step>
+  <Step title="Name your companion">
+    Give your companion a name. This is used in the system prompt and chat interface.
+  </Step>
+</Steps>
+
+Settings are saved to both `~/.grind/config` and the `companion_settings` vault table.
+
+## Supported Providers
+
+| Provider  | Models                           |
+| --------- | -------------------------------- |
+| Anthropic | Claude Opus, Sonnet, Haiku       |
+| OpenAI    | GPT-4o, GPT-4o-mini, o1, o1-mini |
+| Google    | Gemini 2.0 Flash, Gemini 1.5 Pro |
+| Ollama    | Any model installed locally      |
+
+## Related
+
+- [`companion`](/cli/companion): view and adjust companion personality and trust
+- [Companion](/core/companion): companion internals and trust system

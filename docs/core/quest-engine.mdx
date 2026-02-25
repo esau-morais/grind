@@ -1,0 +1,68 @@
+---
+title: "Quest Engine"
+description: "How quests are created, validated, and transitioned through their lifecycle."
+summary: "Internals of the quest engine: state machine, transition rules, objective completion, and streak tracking."
+read_when:
+  - "Developer wants to understand how quest state transitions work"
+  - "Developer wants to create or complete quests programmatically"
+  - "User wants to understand what happens under the hood when they complete a quest"
+---
+
+The quest engine lives in `packages/core/src/quest/`. It is a pure domain module with no database calls and no side effects. All vault operations happen in the repository layer.
+
+## State Machine
+
+Quest state transitions are validated by `state-machine.ts`. Not all transitions are legal:
+
+```
+available → active         (start / timer start)
+available → completed      (direct complete, bounties only)
+active → completed         (complete)
+active → failed            (deadline passed)
+active → abandoned         (manual abandon)
+completed → available      (daily/weekly reset at midnight)
+```
+
+Attempting an invalid transition throws a typed error.
+
+## Quest Entity
+
+`createQuestEntity` wraps raw quest data from the database into a domain object with computed properties:
+
+- `isOverdue`: whether the deadline has passed
+- `nextReset`: when a daily/weekly quest resets
+- `currentObjectiveIndex`: for epic/chain quests
+- `completionRate`: percentage of objectives done
+
+## Completing a Quest
+
+`completeObjective(quest, objectiveId)` handles partial completion for epic and chain quests. When all objectives are done, the quest status transitions to `completed`.
+
+For simple quests (daily, weekly, bounty, ritual), a single complete call transitions directly.
+
+## Streak Tracking
+
+`resetQuestStreak(quest)` is called by the scheduler when a daily/weekly quest's deadline passes without completion. It:
+
+1. Decrements the streak counter
+2. Applies the streak penalty multiplier to the next award
+3. Consumes a streak shield if one is available
+
+## Repository Interface
+
+```typescript
+import { createQuestRepository } from "@grindxp/core/vault";
+
+const repo = createQuestRepository(db);
+
+// Create
+await repo.create({ title, type, difficulty, skillTags, baseXp });
+
+// Complete (handles XP award + skill update + streak)
+await repo.complete(questId, { proofType, proofData, note });
+
+// List with filtering
+await repo.list({ status: "active", type: "daily" });
+```
+
+The `complete` method in the repository orchestrates: proof creation → XP calculation → character XP update → skill XP distribution → streak increment → log entry.

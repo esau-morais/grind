@@ -1,0 +1,95 @@
+---
+title: "grindxp gateway"
+description: "Manage the webhook gateway server."
+summary: "Gateway subcommands: start, stop, restart, status, and serve (foreground). The gateway receives webhooks from Telegram, Discord, WhatsApp, and Google Calendar."
+read_when:
+  - "User wants to start receiving webhooks"
+  - "User wants to check if the gateway is running"
+  - "User is setting up Telegram, Discord, or WhatsApp integration"
+---
+
+The gateway is an HTTP server that receives incoming webhooks and normalizes them into `signals` for the Forge to process.
+
+## Subcommands
+
+### `gateway start`
+
+```bash
+grindxp gateway start
+```
+
+Starts the gateway and enables autostart using the OS service manager when available (`launchd`, `systemd --user`, or Task Scheduler). Runtime state is tracked in `~/.grind/gateway-state.json`.
+
+### `gateway enable`
+
+```bash
+grindxp gateway enable
+```
+
+Alias for `gateway start`.
+
+### `gateway stop`
+
+```bash
+grindxp gateway stop
+```
+
+Stops the running gateway process.
+
+### `gateway disable`
+
+```bash
+grindxp gateway disable
+```
+
+Disables gateway autostart and stops the gateway.
+
+### `gateway restart`
+
+```bash
+grindxp gateway restart
+```
+
+Stops and restarts the gateway.
+
+### `gateway status`
+
+```bash
+grindxp gateway status
+```
+
+Shows runtime status, autostart status, health, and endpoint.
+
+### `gateway serve`
+
+```bash
+grindxp gateway serve
+```
+
+Runs the gateway in the foreground (useful for debugging webhook delivery).
+
+## Webhook Endpoints
+
+| Endpoint                      | Integration                                      |
+| ----------------------------- | ------------------------------------------------ |
+| `GET /health`                 | Health check                                     |
+| `POST /hooks/inbound`         | Generic inbound signal                           |
+| `POST /hooks/telegram`        | Telegram Bot API                                 |
+| `POST /hooks/discord`         | Discord webhook (Ed25519 signature verification) |
+| `POST /hooks/google-calendar` | Google Calendar push notifications               |
+| `POST /hooks/whatsapp`        | WhatsApp Cloud API (HMAC signature verification) |
+
+## Configuration
+
+Configure via environment variables:
+
+```bash
+GATEWAY_PORT=3001            # default: 3001
+GATEWAY_SECRET=...           # shared secret for generic hooks
+TELEGRAM_BOT_TOKEN=...       # for Telegram webhook verification
+DISCORD_PUBLIC_KEY=...       # for Discord Ed25519 verification
+WHATSAPP_APP_SECRET=...      # for WhatsApp HMAC verification
+GOOGLE_CALENDAR_WEBHOOK_TOKEN=...
+```
+
+See [Environment Reference](/reference/env) for the full list.

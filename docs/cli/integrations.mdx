@@ -1,0 +1,42 @@
+---
+title: "grindxp integrations"
+description: "Manage credentials for external integrations."
+summary: "The integrations command manages credentials for Telegram, Discord, WhatsApp, and Google Calendar integrations."
+read_when:
+  - "User wants to connect Telegram, Discord, WhatsApp, or Google Calendar"
+  - "User wants to update integration credentials"
+  - "User wants to see which integrations are configured"
+---
+
+```bash
+grindxp integrations
+```
+
+Interactive menu to add, update, or remove credentials for:
+
+| Integration            | Credential                                |
+| ---------------------- | ----------------------------------------- |
+| Telegram               | Bot token                                 |
+| Discord                | Webhook URL, public key                   |
+| WhatsApp Cloud API     | Phone number ID, access token, app secret |
+| WhatsApp Web (Baileys) | Session via QR code or pairing code       |
+| Google Calendar        | OAuth credentials                         |
+
+Credentials are stored encrypted in your vault (`companion_settings` table).
+
+## WhatsApp Web
+
+WhatsApp Web uses the [Baileys](https://github.com/WhiskeySockets/Baileys) library to connect via the WhatsApp Web protocol (no cloud API key needed):
+
+```bash
+grindxp integrations
+# Select: WhatsApp Web
+# Choose: QR Code or Pairing Code
+```
+
+A QR code is displayed in the terminal. Scan it with WhatsApp on your phone to link.
+
+<Warning>
+  WhatsApp Web sessions can be revoked by WhatsApp at any time. Use the official WhatsApp Cloud API
+  for more stable integrations.
+</Warning>

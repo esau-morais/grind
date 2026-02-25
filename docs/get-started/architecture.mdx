@@ -1,0 +1,134 @@
+---
+title: "Architecture"
+description: "How Grind's packages fit together: the monorepo structure and data flow."
+summary: "Technical architecture overview: monorepo structure, package responsibilities, data flow, and key design decisions."
+read_when:
+  - "Developer wants to understand how the codebase is structured"
+  - "User wants to know where a feature lives"
+  - "User wants to contribute to Grind"
+---
+
+## Monorepo Structure
+
+```
+grind/
+├── packages/
+│   ├── core/     # @grindxp/core   Domain engine
+│   ├── cli/      # @grindxp/cli    Clack-based CLI
+│   ├── tui/      # @grindxp/tui    OpenTUI terminal dashboard
+│   └── web/      # @grindxp/web    TanStack Start web app
+├── docs/                         Mintlify documentation
+├── package.json                  Bun workspaces root
+├── tsconfig.json                 Shared TypeScript config
+└── biome.json                    Shared formatter/linter
+```
+
+## Package Responsibilities
+
+### `@grindxp/core`
+
+The domain engine. All business logic lives here. The other packages depend on it; it depends on nothing else in the monorepo.
+
+Key modules:
+
+| Export        | Contents                                     |
+| ------------- | -------------------------------------------- |
+| `.` (default) | Re-exports all public API                    |
+| `./schema`    | Zod schemas for all domain entities          |
+| `./vault`     | Database client, repositories, migrations    |
+| `./quest`     | Quest engine and state machine               |
+| `./xp`        | XP calculator and level math                 |
+| `./skill`     | Skill tree builder and XP routing            |
+| `./forge`     | Forge engine and runtime daemon              |
+| `./gateway`   | HTTP server for webhook ingestion            |
+| `./proof`     | Proof engine and multiplier calculation      |
+| `./companion` | Trust ladder, AI provider registry, prompts  |
+| `./agent`     | Streaming agent runtime and tool definitions |
+
+### `@grindxp/cli`
+
+Twenty-plus commands powered by [Clack](https://clack.cc). Each command is a module in `src/commands/`. The entry point (`src/index.ts`) routes to the appropriate command based on `process.argv`.
+
+Integrations (Telegram polling, WhatsApp Web via Baileys) are also implemented here since they require long-running processes managed by the CLI.
+
+### `@grindxp/tui`
+
+A 30fps React terminal UI built on [OpenTUI](https://opentui.com). Uses the same OpenTUI React renderer as a browser React app uses the DOM; the JSX maps to terminal primitives.
+
+The TUI renders four screens (Dashboard, Quests, Skills, Chat) navigated by keyboard shortcuts. The Chat screen is itself a full application (`ChatApp.tsx`) that runs the agent streaming loop.
+
+### `@grindxp/web`
+
+A [TanStack Start](https://tanstack.com/start) SSR web app. Currently ships a polished landing page and an app shell with stubbed pages. App pages are under active development.
+
+## Data Flow
+
+```
+User Action (CLI / TUI / Web / Webhook)
+        ↓
+@grindxp/core domain functions
+        ↓
+Repository layer (CRUD operations)
+        ↓
+Vault (SQLite via libsql)
+        ↓
+Optional: Turso cloud sync
+```
+
+For AI interactions:
+
+```
+User message (TUI chat / CLI chat)
+        ↓
+agent/runtime.ts (runAgent() async generator)
+        ↓
+Vercel AI SDK (streams tokens, tool calls)
+        ↓
+agent/tools.ts (executes tools: quest ops, file ops, bash)
+        ↓
+Results streamed back to user
+```
+
+For automation:
+
+```
+Signal arrives (webhook / git hook / file event / cron)
+        ↓
+forge/runtime.ts (forge tick)
+        ↓
+forge/engine.ts (rule evaluation)
+        ↓
+Action plan built and executed
+        ↓
+Quest created / completed / XP awarded
+```
+
+## Key Design Decisions
+
+### Bun-only
+
+Grind uses Bun APIs directly (`Bun.serve`, `import.meta.dir`, `bun:sqlite`). It is not designed to run on Node.js. This provides fast startup, native SQLite, and native `.env` loading.
+
+### `exactOptionalPropertyTypes: true`
+
+TypeScript is configured with `exactOptionalPropertyTypes`. This means you cannot assign `undefined` to an optional property. Use spread conditionals instead:
+
+```typescript
+// Wrong
+const obj = { optionalProp: undefined };
+
+// Right
+const obj = { ...(value !== undefined && { optionalProp: value }) };
+```
+
+### Local-first
+
+The vault is a local SQLite file at `~/.grind/vault.db`. Encryption is applied via libsql's encryption extension. Turso cloud sync is optional and additive; the local file is always the primary.
+
+### AI is optional
+
+Zero AI calls are made by the core quest/XP/skill system. The companion and agent are independent modules that the user opts into by configuring an API key.
+
+### Single domain engine
+
+All four packages (`core`, `cli`, `tui`, `web`) share the same `@grindxp/core` domain engine. There is no separate backend API. The CLI and TUI open the SQLite vault directly. The web app will eventually call `@grindxp/core` server functions via TanStack Start's server functions.

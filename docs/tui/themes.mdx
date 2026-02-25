@@ -1,0 +1,37 @@
+---
+title: "Themes"
+description: "Customizing the TUI color scheme."
+summary: "How to switch TUI themes and what built-in themes are available."
+read_when:
+  - "User wants to change the TUI color scheme"
+  - "User wants to know what themes Grind ships with"
+---
+
+Switch themes at runtime via `/theme` in the chat screen, or set the default in your config.
+
+## Built-in Themes
+
+| Theme         | Description                                        |
+| ------------- | -------------------------------------------------- |
+| `grind`       | Default dark orange theme matching the Grind brand |
+| `tokyo-night` | Deep blue-purple Tokyo Night palette               |
+| `catppuccin`  | Catppuccin Mocha: muted pastels on dark background |
+| `dracula`     | Classic Dracula purple and pink                    |
+
+## Switching Themes
+
+In the TUI chat screen:
+
+```
+/theme
+```
+
+Select from the list. The theme applies immediately across all screens.
+
+## Custom Themes
+
+Theme files are JSON loaded from `~/.grind/themes/`. To create a custom theme:
+
+1. Copy an existing theme file as a reference
+2. Save it to `~/.grind/themes/my-theme.json`
+3. Select it via `/theme` in the TUI

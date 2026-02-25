@@ -1,0 +1,55 @@
+---
+title: "grindxp quest"
+description: "Create, list, and abandon quests from the command line."
+summary: "Quest subcommands: create (interactive wizard), list (filtered view), abandon (with confirmation)."
+read_when:
+  - "User wants to create a new quest"
+  - "User wants to list their quests"
+  - "User wants to abandon a quest"
+---
+
+## Subcommands
+
+### `quest create`
+
+```bash
+grindxp quest create
+```
+
+Interactive wizard that prompts for:
+
+| Field      | Options                                                |
+| ---------- | ------------------------------------------------------ |
+| Title      | Free text                                              |
+| Type       | `daily`, `weekly`, `bounty`, `epic`, `chain`, `ritual` |
+| Difficulty | `easy`, `medium`, `hard`, `epic`                       |
+| Skills     | Select from existing skill tree, or create new         |
+| Objectives | One or more measurable objectives (for epics)          |
+| Schedule   | Cron expression (for rituals)                          |
+
+The quest is created in `available` state.
+
+### `quest list`
+
+```bash
+grindxp quest list
+```
+
+Lists all quests. Displays type, difficulty, status, and active streak for each quest.
+
+### `quest abandon`
+
+```bash
+grindxp quest abandon
+```
+
+Select a quest to abandon. Prompts for confirmation. Abandoning a quest breaks its streak.
+
+<Warning>
+  Abandoning a quest does not delete it from history. The quest log retains all completion records.
+</Warning>
+
+## Related
+
+- [`start`](/cli/start) / [`stop`](/cli/stop): timer-based tracking (1.5x XP)
+- [`complete`](/cli/complete): self-report completion (1.0x XP)

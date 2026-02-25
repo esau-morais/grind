@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "types": ["bun"],
+    "baseUrl": ".",
+    "paths": {
+      "@grindxp/core": ["packages/core/src/index.ts"],
+      "@grindxp/core/*": ["packages/core/src/*"],
+      "@grindxp/cli": ["packages/cli/src/index.ts"],
+      "@grindxp/cli/*": ["packages/cli/src/*"],
+      "@grindxp/tui": ["packages/tui/src/index.tsx"],
+      "@grindxp/tui/chat": ["packages/tui/src/chat-entry.ts"],
+      "@grindxp/tui/*": ["packages/tui/src/*"],
+      "@grindxp/web": ["packages/web/src/index.ts"],
+      "@grindxp/web/*": ["packages/web/src/*"]
+    }
+  },
+  "exclude": [".opencode"]
+}

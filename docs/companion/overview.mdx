@@ -1,0 +1,69 @@
+---
+title: "Your AI Companion"
+description: "An AI that lives inside Grind, knows your goals, and earns autonomy over time."
+---
+
+Your companion is an AI assistant with access to your vault: quests, XP, streaks, skill progress, and activity history. It can answer questions, suggest what to work on next, help you reflect on your habits, and, at higher trust levels, take actions on your behalf.
+
+It is **optional**. Grind works fully without it.
+
+## Trust Ladder
+
+The companion starts in observation mode. It gains capabilities as you increase its trust level, either manually or by letting it earn it through demonstrated reliability.
+
+| Level | Name      | What it can do                                                  |
+| ----- | --------- | --------------------------------------------------------------- |
+| 0     | Watcher   | Read your data, answer questions, give suggestions              |
+| 1     | Advisor   | Suggest new quests and warn about missed habits                 |
+| 2     | Scribe    | Create quests and log entries on your behalf                    |
+| 3     | Agent     | Run tools, modify quests, execute commands (with your approval) |
+| 4     | Sovereign | Full autonomy, no approval prompts                              |
+
+Most people stay at level 1 or 2. Level 4 is for power users who trust the companion completely.
+
+At levels 3 and 4, the companion can run shell commands and edit files. Review what it does carefully before granting these levels.
+
+## Setting Up
+
+Configure your AI provider once:
+
+```bash
+grindxp setup
+```
+
+You'll choose a provider (Anthropic, OpenAI, Google, or a local Ollama instance), enter an API key, select a model, and give your companion a name. That's it.
+
+To adjust the companion's personality, focus areas, or trust level later:
+
+```bash
+grindxp companion soul
+```
+
+## Using the Companion
+
+Open the chat interface from the terminal or web app:
+
+- **Terminal**: press `c` in the TUI, or see [Chat screen](/tui/chat)
+- **Web**: navigate to `/app/chat`, or see [Web chat](/web/chat)
+
+From there, just talk to it. Some things you can ask:
+
+- "What should I work on today?"
+- "How is my fitness streak looking?"
+- "Create a daily quest for morning reading."
+- "Why did my XP drop this week?"
+
+## Provider Options
+
+| Provider  | Default model             | Accepts                    |
+| --------- | ------------------------- | -------------------------- |
+| Anthropic | `claude-3-5-haiku-latest` | Any Anthropic model string |
+| OpenAI    | `gpt-4o-mini`             | Any OpenAI model string    |
+| Google    | `gemini-2.0-flash-exp`    | Any Google model string    |
+| Ollama    | `llama3.1:8b`             | Any model running locally  |
+
+Your conversation goes to whichever provider you've configured, and nowhere else. Grind does not have a backend that receives your data.
+
+## Connecting Messaging Apps
+
+You can also chat with your companion through Telegram, Discord, or WhatsApp. See [Integrations](/cli/integrations) to connect them.

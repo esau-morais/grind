@@ -1,0 +1,74 @@
+---
+title: "uninstall"
+description: "Stop Grind services and remove local data. The CLI binary itself is not removed."
+summary: "Interactive uninstall wizard: stop the gateway and web services, optionally delete the vault and config directory (~/.grind/)."
+read_when:
+  - "User wants to uninstall Grind"
+  - "User wants to remove Grind data or services"
+  - "User wants to stop the gateway or web service permanently"
+---
+
+```bash
+grindxp uninstall [--all] [--gateway] [--web] [--vault] [--yes] [--dry-run]
+```
+
+Without flags, an interactive multiselect lets you choose which components to remove. Pass explicit flags to skip the prompt.
+
+## Flags
+
+| Flag           | Description                                                                              |
+| -------------- | ---------------------------------------------------------------------------------------- |
+| `--all`        | Select all scopes (gateway, web, vault)                                                  |
+| `--gateway`    | Stop the gateway process and remove its autostart service (launchd / systemd / schtasks) |
+| `--web`        | Stop the background web app process                                                      |
+| `--vault`      | Delete `~/.grind/` (removes the vault DB, config, encryption key, and all data)          |
+| `--yes` / `-y` | Skip the confirmation prompt                                                             |
+| `--dry-run`    | Print what would be removed without making any changes                                   |
+
+## What Gets Removed
+
+| Scope     | What is removed                                                                              |
+| --------- | -------------------------------------------------------------------------------------------- |
+| `gateway` | Running gateway process (SIGTERM → SIGKILL) + autostart service registration                 |
+| `web`     | Running web app process (SIGTERM → SIGKILL)                                                  |
+| `vault`   | `~/.grind/`: vault DB, config, encryption key, timer state, auth tokens, service state files |
+
+The CLI binary itself is **not** removed. After uninstalling, remove it manually:
+
+<CodeGroup>
+  ```bash installer
+  rm -rf ~/.grind/bin/
+  ```
+
+```bash bun
+bun remove -g grindxp
+```
+
+```bash npm
+npm uninstall -g grindxp
+```
+
+```bash pnpm
+pnpm remove -g grindxp
+```
+
+```bash source
+# Remove alias from ~/.zshrc or ~/.bashrc
+nano ~/.zshrc
+# Delete the line: alias grindxp="bun --cwd ~/grind cli"
+
+# Then delete the repo
+rm -rf ~/grind
+```
+
+</CodeGroup>
+
+<Warning>
+  `--vault` deletes your vault, encryption key, and all quest data permanently. Back up
+  `~/.grind/vault.db` and `~/.grind/config.json` before running if you want to preserve your data.
+</Warning>
+
+## Related
+
+- [Installation](/install): how to install Grind
+- [gateway disable](/cli/gateway): disable autostart without a full uninstall
