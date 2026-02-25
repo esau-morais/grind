@@ -1,6 +1,6 @@
 {
   "name": "@grindxp/cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Grind — a gamified productivity CLI. Track quests, earn XP, build streaks.",
   "keywords": [
     "cli",
@@ -32,7 +32,7 @@
   },
   "scripts": {
     "start": "bun src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun --sourcemap=none --external @libsql/client --banner '#!/usr/bin/env bun' && chmod +x dist/index.js",
+    "build": "bun build-npm.ts && chmod +x dist/index.js",
     "build:binary": "bun build-binary.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepublishOnly": "bun run build && bun run typecheck"

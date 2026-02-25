@@ -110,6 +110,8 @@ export function getServiceStatePath(): string {
 }
 
 export function getMigrationsPath(): string {
+  const bundled = join(import.meta.dir, "drizzle");
+  if (existsSync(join(bundled, "meta", "_journal.json"))) return bundled;
   return join(import.meta.dir, "../drizzle");
 }
 
