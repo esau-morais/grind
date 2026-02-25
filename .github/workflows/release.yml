@@ -48,10 +48,8 @@ jobs:
       - name: Publish to npm
         working-directory: packages/cli
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "$HOME/.npmrc"
-          bun publish --no-git-checks --provenance
+          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: bun publish --no-git-checks --provenance
 
   build-binaries:
     needs: [typecheck]
@@ -66,11 +64,11 @@ jobs:
           - target: bun-linux-arm64
             os: linux
             arch: arm64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04-arm64
           - target: bun-darwin-x64
             os: darwin
             arch: x64
-            runner: macos-latest
+            runner: macos-13
           - target: bun-darwin-arm64
             os: darwin
             arch: arm64
