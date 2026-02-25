@@ -33,14 +33,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prepublishOnly": "bun run build && bun run typecheck"
   },
-  "dependencies": {
+  "devDependencies": {
     "@clack/prompts": "^1.0.1",
     "@grindxp/core": "workspace:*",
+    "@types/qrcode-terminal": "0.12.2",
     "@whiskeysockets/baileys": "7.0.0-rc.9",
     "qrcode-terminal": "0.12.0"
-  },
-  "devDependencies": {
-    "@types/qrcode-terminal": "0.12.2"
   },
   "engines": {
     "bun": ">=1.0.0"
