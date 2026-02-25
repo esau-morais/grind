@@ -1,160 +1,165 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "Grind",
-  "description": "Your Life Is The Game. Level Up For Real.",
-  "theme": "maple",
-  "colors": {
-    "primary": "#A85518",
-    "light": "#F09050",
-    "dark": "#B05518"
-  },
-  "icons": {
-    "library": "lucide"
-  },
-  "logo": {
-    "light": "/logo/grind-light.svg",
-    "dark": "/logo/grind-dark.svg"
-  },
-  "favicon": "/logo/grind-dark.svg",
-  "fonts": {
-    "heading": {
-      "family": "Geist"
-    },
-    "body": {
-      "family": "Geist"
-    }
-  },
-  "appearance": {
-    "default": "dark"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "GitHub",
-        "href": "https://github.com/esau-morais/grind",
-        "icon": "github"
-      }
-    ]
-  },
-  "navigation": {
-    "tabs": [
-      {
-        "tab": "Get Started",
-        "icon": "play",
-        "groups": [
-          {
-            "group": "Introduction",
-            "pages": ["index", "get-started/what-is-grind"]
-          },
-          {
-            "group": "Install",
-            "pages": ["install/index", "get-started/quickstart"]
-          },
-          {
-            "group": "How It Works",
-            "pages": ["get-started/concepts"]
-          }
-        ]
-      },
-      {
-        "tab": "AI & Automation",
-        "icon": "sparkles",
-        "groups": [
-          {
-            "group": "Companion",
-            "pages": ["companion/overview", "tui/chat"]
-          }
-        ]
-      },
-      {
-        "tab": "Using Grind",
-        "icon": "layout-dashboard",
-        "groups": [
-          {
-            "group": "Terminal",
-            "pages": ["tui/using-grind", "tui/themes", "tui/slash-commands"]
-          },
-          {
-            "group": "Web App",
-            "pages": [
-              "web/index",
-              "web/dashboard",
-              "web/chat",
-              "web/quests",
-              "web/skills",
-              "web/analytics",
-              "web/forge"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "CLI Reference",
-        "icon": "terminal",
-        "groups": [
-          {
-            "group": "Commands",
-            "pages": [
-              "cli/index",
-              "cli/init",
-              "cli/setup",
-              "cli/quest",
-              "cli/start",
-              "cli/stop",
-              "cli/complete",
-              "cli/companion"
-            ]
-          },
-          {
-            "group": "Integrations & Automation",
-            "pages": ["cli/integrations", "cli/forge", "cli/gateway"]
-          }
-        ]
-      },
-      {
-        "tab": "Reference",
-        "icon": "book-open",
-        "groups": [
-          {
-            "group": "Configuration",
-            "pages": ["reference/configuration", "reference/env"]
-          },
-          {
-            "group": "Security",
-            "pages": ["reference/security"]
-          },
-          {
-            "group": "Game Mechanics",
-            "pages": ["reference/game-mechanics"]
-          },
-          {
-            "group": "For Contributors",
-            "pages": [
-              "get-started/architecture",
-              "core/quest-engine",
-              "core/xp-leveling",
-              "core/skill-trees",
-              "core/proof-system",
-              "core/streaks",
-              "core/companion",
-              "core/agent",
-              "core/forge",
-              "core/vault",
-              "core/gateway",
-              "reference/contributing"
-            ]
-          },
-          {
-            "group": "Project",
-            "pages": ["reference/changelog"]
-          }
-        ]
-      }
-    ]
-  },
-  "footer": {
-    "socials": {
-      "github": "https://github.com/esau-morais/grind"
-    }
-  }
+	"$schema": "https://mintlify.com/docs.json",
+	"name": "Grind",
+	"description": "Your Life Is The Game. Level Up For Real.",
+	"theme": "maple",
+	"colors": {
+		"primary": "#A85518",
+		"light": "#F09050",
+		"dark": "#B05518"
+	},
+	"icons": {
+		"library": "lucide"
+	},
+	"logo": {
+		"light": "/logo/grind-light.svg",
+		"dark": "/logo/grind-dark.svg"
+	},
+	"favicon": "/logo/grind-dark.svg",
+	"fonts": {
+		"heading": {
+			"family": "Geist"
+		},
+		"body": {
+			"family": "Geist"
+		}
+	},
+	"appearance": {
+		"default": "dark"
+	},
+	"navbar": {
+		"links": [
+			{
+				"label": "GitHub",
+				"href": "https://github.com/esau-morais/grind",
+				"icon": "github"
+			}
+		]
+	},
+	"navigation": {
+		"tabs": [
+			{
+				"tab": "Get Started",
+				"icon": "play",
+				"groups": [
+					{
+						"group": "Introduction",
+						"pages": ["index", "get-started/what-is-grind"]
+					},
+					{
+						"group": "Install",
+						"pages": ["install/index", "get-started/quickstart"]
+					},
+					{
+						"group": "How It Works",
+						"pages": ["get-started/concepts"]
+					}
+				]
+			},
+			{
+				"tab": "AI & Automation",
+				"icon": "sparkles",
+				"groups": [
+					{
+						"group": "Companion",
+						"pages": ["companion/overview", "tui/chat"]
+					}
+				]
+			},
+			{
+				"tab": "Using Grind",
+				"icon": "layout-dashboard",
+				"groups": [
+					{
+						"group": "Terminal",
+						"pages": ["tui/using-grind", "tui/themes", "tui/slash-commands"]
+					},
+					{
+						"group": "Web App",
+						"pages": [
+							"web/index",
+							"web/dashboard",
+							"web/chat",
+							"web/quests",
+							"web/skills",
+							"web/analytics",
+							"web/forge"
+						]
+					}
+				]
+			},
+			{
+				"tab": "CLI Reference",
+				"icon": "terminal",
+				"groups": [
+					{
+						"group": "Commands",
+						"pages": [
+							"cli/index",
+							"cli/init",
+							"cli/setup",
+							"cli/quest",
+							"cli/start",
+							"cli/stop",
+							"cli/complete",
+							"cli/companion"
+						]
+					},
+					{
+						"group": "Integrations & Automation",
+						"pages": ["cli/integrations", "cli/forge", "cli/gateway"]
+					}
+				]
+			},
+			{
+				"tab": "Reference",
+				"icon": "book-open",
+				"groups": [
+					{
+						"group": "Configuration",
+						"pages": ["reference/configuration", "reference/env"]
+					},
+					{
+						"group": "Security",
+						"pages": ["reference/security"]
+					},
+					{
+						"group": "Game Mechanics",
+						"pages": ["reference/game-mechanics"]
+					},
+					{
+						"group": "For Contributors",
+						"pages": [
+							"get-started/architecture",
+							"core/quest-engine",
+							"core/xp-leveling",
+							"core/skill-trees",
+							"core/proof-system",
+							"core/streaks",
+							"core/companion",
+							"core/agent",
+							"core/forge",
+							"core/vault",
+							"core/gateway",
+							"reference/contributing"
+						]
+					},
+					{
+						"group": "Project",
+						"pages": ["reference/changelog"]
+					}
+				]
+			}
+		]
+	},
+	"seo": {
+		"metatags": {
+			"canonical": "https://docs.grindxp.app"
+		}
+	},
+	"footer": {
+		"socials": {
+			"github": "https://github.com/esau-morais/grind"
+		}
+	}
 }
