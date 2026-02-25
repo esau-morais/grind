@@ -100,11 +100,9 @@ jobs:
           if [[ "${{ matrix.os }}" == "windows" ]]; then
             OUTFILE="${OUTFILE}.exe"
           fi
-          bun build packages/cli/src/index.ts \
-            --compile \
-            --target=${{ matrix.target }} \
-            --define "process.env.GRIND_GOOGLE_CLIENT_SECRET='${GRIND_GOOGLE_CLIENT_SECRET}'" \
-            --outfile "dist/${OUTFILE}"
+          TARGET="${{ matrix.target }}" \
+          OUTFILE="../../dist/${OUTFILE}" \
+          bun run --cwd packages/cli build:binary
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4

@@ -91,6 +91,9 @@
       "bin": {
         "grindxp": "./dist/index.js",
       },
+      "dependencies": {
+        "@libsql/client": "^0.15.15",
+      },
       "devDependencies": {
         "@clack/prompts": "^1.0.1",
         "@grindxp/core": "workspace:*",

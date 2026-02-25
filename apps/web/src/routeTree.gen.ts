@@ -8,252 +8,252 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as AppRouteImport } from './routes/app'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AppIndexRouteImport } from './routes/app/index'
-import { Route as ApiHealthRouteImport } from './routes/api/health'
-import { Route as AppSkillsIndexRouteImport } from './routes/app/skills/index'
-import { Route as AppQuestsIndexRouteImport } from './routes/app/quests/index'
-import { Route as AppIntegrationsIndexRouteImport } from './routes/app/integrations/index'
-import { Route as AppForgeIndexRouteImport } from './routes/app/forge/index'
-import { Route as AppCompanionIndexRouteImport } from './routes/app/companion/index'
-import { Route as AppChatIndexRouteImport } from './routes/app/chat/index'
-import { Route as AppAnalyticsIndexRouteImport } from './routes/app/analytics/index'
+import { Route as rootRouteImport } from "./routes/__root";
+import { Route as AppRouteImport } from "./routes/app";
+import { Route as IndexRouteImport } from "./routes/index";
+import { Route as AppIndexRouteImport } from "./routes/app/index";
+import { Route as ApiHealthRouteImport } from "./routes/api/health";
+import { Route as AppSkillsIndexRouteImport } from "./routes/app/skills/index";
+import { Route as AppQuestsIndexRouteImport } from "./routes/app/quests/index";
+import { Route as AppIntegrationsIndexRouteImport } from "./routes/app/integrations/index";
+import { Route as AppForgeIndexRouteImport } from "./routes/app/forge/index";
+import { Route as AppCompanionIndexRouteImport } from "./routes/app/companion/index";
+import { Route as AppChatIndexRouteImport } from "./routes/app/chat/index";
+import { Route as AppAnalyticsIndexRouteImport } from "./routes/app/analytics/index";
 
 const AppRoute = AppRouteImport.update({
-  id: '/app',
-  path: '/app',
+  id: "/app",
+  path: "/app",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+  id: "/",
+  path: "/",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const AppIndexRoute = AppIndexRouteImport.update({
-  id: '/',
-  path: '/',
+  id: "/",
+  path: "/",
   getParentRoute: () => AppRoute,
-} as any)
+} as any);
 const ApiHealthRoute = ApiHealthRouteImport.update({
-  id: '/api/health',
-  path: '/api/health',
+  id: "/api/health",
+  path: "/api/health",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const AppSkillsIndexRoute = AppSkillsIndexRouteImport.update({
-  id: '/skills/',
-  path: '/skills/',
+  id: "/skills/",
+  path: "/skills/",
   getParentRoute: () => AppRoute,
-} as any)
+} as any);
 const AppQuestsIndexRoute = AppQuestsIndexRouteImport.update({
-  id: '/quests/',
-  path: '/quests/',
+  id: "/quests/",
+  path: "/quests/",
   getParentRoute: () => AppRoute,
-} as any)
+} as any);
 const AppIntegrationsIndexRoute = AppIntegrationsIndexRouteImport.update({
-  id: '/integrations/',
-  path: '/integrations/',
+  id: "/integrations/",
+  path: "/integrations/",
   getParentRoute: () => AppRoute,
-} as any)
+} as any);
 const AppForgeIndexRoute = AppForgeIndexRouteImport.update({
-  id: '/forge/',
-  path: '/forge/',
+  id: "/forge/",
+  path: "/forge/",
   getParentRoute: () => AppRoute,
-} as any)
+} as any);
 const AppCompanionIndexRoute = AppCompanionIndexRouteImport.update({
-  id: '/companion/',
-  path: '/companion/',
+  id: "/companion/",
+  path: "/companion/",
   getParentRoute: () => AppRoute,
-} as any)
+} as any);
 const AppChatIndexRoute = AppChatIndexRouteImport.update({
-  id: '/chat/',
-  path: '/chat/',
+  id: "/chat/",
+  path: "/chat/",
   getParentRoute: () => AppRoute,
-} as any)
+} as any);
 const AppAnalyticsIndexRoute = AppAnalyticsIndexRouteImport.update({
-  id: '/analytics/',
-  path: '/analytics/',
+  id: "/analytics/",
+  path: "/analytics/",
   getParentRoute: () => AppRoute,
-} as any)
+} as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/app': typeof AppRouteWithChildren
-  '/api/health': typeof ApiHealthRoute
-  '/app/': typeof AppIndexRoute
-  '/app/analytics/': typeof AppAnalyticsIndexRoute
-  '/app/chat/': typeof AppChatIndexRoute
-  '/app/companion/': typeof AppCompanionIndexRoute
-  '/app/forge/': typeof AppForgeIndexRoute
-  '/app/integrations/': typeof AppIntegrationsIndexRoute
-  '/app/quests/': typeof AppQuestsIndexRoute
-  '/app/skills/': typeof AppSkillsIndexRoute
+  "/": typeof IndexRoute;
+  "/app": typeof AppRouteWithChildren;
+  "/api/health": typeof ApiHealthRoute;
+  "/app/": typeof AppIndexRoute;
+  "/app/analytics/": typeof AppAnalyticsIndexRoute;
+  "/app/chat/": typeof AppChatIndexRoute;
+  "/app/companion/": typeof AppCompanionIndexRoute;
+  "/app/forge/": typeof AppForgeIndexRoute;
+  "/app/integrations/": typeof AppIntegrationsIndexRoute;
+  "/app/quests/": typeof AppQuestsIndexRoute;
+  "/app/skills/": typeof AppSkillsIndexRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/api/health': typeof ApiHealthRoute
-  '/app': typeof AppIndexRoute
-  '/app/analytics': typeof AppAnalyticsIndexRoute
-  '/app/chat': typeof AppChatIndexRoute
-  '/app/companion': typeof AppCompanionIndexRoute
-  '/app/forge': typeof AppForgeIndexRoute
-  '/app/integrations': typeof AppIntegrationsIndexRoute
-  '/app/quests': typeof AppQuestsIndexRoute
-  '/app/skills': typeof AppSkillsIndexRoute
+  "/": typeof IndexRoute;
+  "/api/health": typeof ApiHealthRoute;
+  "/app": typeof AppIndexRoute;
+  "/app/analytics": typeof AppAnalyticsIndexRoute;
+  "/app/chat": typeof AppChatIndexRoute;
+  "/app/companion": typeof AppCompanionIndexRoute;
+  "/app/forge": typeof AppForgeIndexRoute;
+  "/app/integrations": typeof AppIntegrationsIndexRoute;
+  "/app/quests": typeof AppQuestsIndexRoute;
+  "/app/skills": typeof AppSkillsIndexRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/app': typeof AppRouteWithChildren
-  '/api/health': typeof ApiHealthRoute
-  '/app/': typeof AppIndexRoute
-  '/app/analytics/': typeof AppAnalyticsIndexRoute
-  '/app/chat/': typeof AppChatIndexRoute
-  '/app/companion/': typeof AppCompanionIndexRoute
-  '/app/forge/': typeof AppForgeIndexRoute
-  '/app/integrations/': typeof AppIntegrationsIndexRoute
-  '/app/quests/': typeof AppQuestsIndexRoute
-  '/app/skills/': typeof AppSkillsIndexRoute
+  __root__: typeof rootRouteImport;
+  "/": typeof IndexRoute;
+  "/app": typeof AppRouteWithChildren;
+  "/api/health": typeof ApiHealthRoute;
+  "/app/": typeof AppIndexRoute;
+  "/app/analytics/": typeof AppAnalyticsIndexRoute;
+  "/app/chat/": typeof AppChatIndexRoute;
+  "/app/companion/": typeof AppCompanionIndexRoute;
+  "/app/forge/": typeof AppForgeIndexRoute;
+  "/app/integrations/": typeof AppIntegrationsIndexRoute;
+  "/app/quests/": typeof AppQuestsIndexRoute;
+  "/app/skills/": typeof AppSkillsIndexRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
+  fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
-    | '/'
-    | '/app'
-    | '/api/health'
-    | '/app/'
-    | '/app/analytics/'
-    | '/app/chat/'
-    | '/app/companion/'
-    | '/app/forge/'
-    | '/app/integrations/'
-    | '/app/quests/'
-    | '/app/skills/'
-  fileRoutesByTo: FileRoutesByTo
+    | "/"
+    | "/app"
+    | "/api/health"
+    | "/app/"
+    | "/app/analytics/"
+    | "/app/chat/"
+    | "/app/companion/"
+    | "/app/forge/"
+    | "/app/integrations/"
+    | "/app/quests/"
+    | "/app/skills/";
+  fileRoutesByTo: FileRoutesByTo;
   to:
-    | '/'
-    | '/api/health'
-    | '/app'
-    | '/app/analytics'
-    | '/app/chat'
-    | '/app/companion'
-    | '/app/forge'
-    | '/app/integrations'
-    | '/app/quests'
-    | '/app/skills'
+    | "/"
+    | "/api/health"
+    | "/app"
+    | "/app/analytics"
+    | "/app/chat"
+    | "/app/companion"
+    | "/app/forge"
+    | "/app/integrations"
+    | "/app/quests"
+    | "/app/skills";
   id:
-    | '__root__'
-    | '/'
-    | '/app'
-    | '/api/health'
-    | '/app/'
-    | '/app/analytics/'
-    | '/app/chat/'
-    | '/app/companion/'
-    | '/app/forge/'
-    | '/app/integrations/'
-    | '/app/quests/'
-    | '/app/skills/'
-  fileRoutesById: FileRoutesById
+    | "__root__"
+    | "/"
+    | "/app"
+    | "/api/health"
+    | "/app/"
+    | "/app/analytics/"
+    | "/app/chat/"
+    | "/app/companion/"
+    | "/app/forge/"
+    | "/app/integrations/"
+    | "/app/quests/"
+    | "/app/skills/";
+  fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AppRoute: typeof AppRouteWithChildren
-  ApiHealthRoute: typeof ApiHealthRoute
+  IndexRoute: typeof IndexRoute;
+  AppRoute: typeof AppRouteWithChildren;
+  ApiHealthRoute: typeof ApiHealthRoute;
 }
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
-    '/app': {
-      id: '/app'
-      path: '/app'
-      fullPath: '/app'
-      preLoaderRoute: typeof AppRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/app/': {
-      id: '/app/'
-      path: '/'
-      fullPath: '/app/'
-      preLoaderRoute: typeof AppIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/api/health': {
-      id: '/api/health'
-      path: '/api/health'
-      fullPath: '/api/health'
-      preLoaderRoute: typeof ApiHealthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/app/skills/': {
-      id: '/app/skills/'
-      path: '/skills'
-      fullPath: '/app/skills/'
-      preLoaderRoute: typeof AppSkillsIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/quests/': {
-      id: '/app/quests/'
-      path: '/quests'
-      fullPath: '/app/quests/'
-      preLoaderRoute: typeof AppQuestsIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/integrations/': {
-      id: '/app/integrations/'
-      path: '/integrations'
-      fullPath: '/app/integrations/'
-      preLoaderRoute: typeof AppIntegrationsIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/forge/': {
-      id: '/app/forge/'
-      path: '/forge'
-      fullPath: '/app/forge/'
-      preLoaderRoute: typeof AppForgeIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/companion/': {
-      id: '/app/companion/'
-      path: '/companion'
-      fullPath: '/app/companion/'
-      preLoaderRoute: typeof AppCompanionIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/chat/': {
-      id: '/app/chat/'
-      path: '/chat'
-      fullPath: '/app/chat/'
-      preLoaderRoute: typeof AppChatIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/analytics/': {
-      id: '/app/analytics/'
-      path: '/analytics'
-      fullPath: '/app/analytics/'
-      preLoaderRoute: typeof AppAnalyticsIndexRouteImport
-      parentRoute: typeof AppRoute
-    }
+    "/app": {
+      id: "/app";
+      path: "/app";
+      fullPath: "/app";
+      preLoaderRoute: typeof AppRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/": {
+      id: "/";
+      path: "/";
+      fullPath: "/";
+      preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/app/": {
+      id: "/app/";
+      path: "/";
+      fullPath: "/app/";
+      preLoaderRoute: typeof AppIndexRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    "/api/health": {
+      id: "/api/health";
+      path: "/api/health";
+      fullPath: "/api/health";
+      preLoaderRoute: typeof ApiHealthRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/app/skills/": {
+      id: "/app/skills/";
+      path: "/skills";
+      fullPath: "/app/skills/";
+      preLoaderRoute: typeof AppSkillsIndexRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    "/app/quests/": {
+      id: "/app/quests/";
+      path: "/quests";
+      fullPath: "/app/quests/";
+      preLoaderRoute: typeof AppQuestsIndexRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    "/app/integrations/": {
+      id: "/app/integrations/";
+      path: "/integrations";
+      fullPath: "/app/integrations/";
+      preLoaderRoute: typeof AppIntegrationsIndexRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    "/app/forge/": {
+      id: "/app/forge/";
+      path: "/forge";
+      fullPath: "/app/forge/";
+      preLoaderRoute: typeof AppForgeIndexRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    "/app/companion/": {
+      id: "/app/companion/";
+      path: "/companion";
+      fullPath: "/app/companion/";
+      preLoaderRoute: typeof AppCompanionIndexRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    "/app/chat/": {
+      id: "/app/chat/";
+      path: "/chat";
+      fullPath: "/app/chat/";
+      preLoaderRoute: typeof AppChatIndexRouteImport;
+      parentRoute: typeof AppRoute;
+    };
+    "/app/analytics/": {
+      id: "/app/analytics/";
+      path: "/analytics";
+      fullPath: "/app/analytics/";
+      preLoaderRoute: typeof AppAnalyticsIndexRouteImport;
+      parentRoute: typeof AppRoute;
+    };
   }
 }
 
 interface AppRouteChildren {
-  AppIndexRoute: typeof AppIndexRoute
-  AppAnalyticsIndexRoute: typeof AppAnalyticsIndexRoute
-  AppChatIndexRoute: typeof AppChatIndexRoute
-  AppCompanionIndexRoute: typeof AppCompanionIndexRoute
-  AppForgeIndexRoute: typeof AppForgeIndexRoute
-  AppIntegrationsIndexRoute: typeof AppIntegrationsIndexRoute
-  AppQuestsIndexRoute: typeof AppQuestsIndexRoute
-  AppSkillsIndexRoute: typeof AppSkillsIndexRoute
+  AppIndexRoute: typeof AppIndexRoute;
+  AppAnalyticsIndexRoute: typeof AppAnalyticsIndexRoute;
+  AppChatIndexRoute: typeof AppChatIndexRoute;
+  AppCompanionIndexRoute: typeof AppCompanionIndexRoute;
+  AppForgeIndexRoute: typeof AppForgeIndexRoute;
+  AppIntegrationsIndexRoute: typeof AppIntegrationsIndexRoute;
+  AppQuestsIndexRoute: typeof AppQuestsIndexRoute;
+  AppSkillsIndexRoute: typeof AppSkillsIndexRoute;
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -265,24 +265,24 @@ const AppRouteChildren: AppRouteChildren = {
   AppIntegrationsIndexRoute: AppIntegrationsIndexRoute,
   AppQuestsIndexRoute: AppQuestsIndexRoute,
   AppSkillsIndexRoute: AppSkillsIndexRoute,
-}
+};
 
-const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren);
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
-}
+};
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();
 
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
+import type { getRouter } from "./router.tsx";
+import type { createStart } from "@tanstack/react-start";
+declare module "@tanstack/react-start" {
   interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
+    ssr: true;
+    router: Awaited<ReturnType<typeof getRouter>>;
   }
 }
