@@ -1,5 +1,5 @@
-const DOCS_HOSTNAME = "docs.grindxp.app";
-const SITE_HOSTNAME = "grindxp.app";
+const DOCS_HOSTNAME = "emots.mintlify.dev";
+const SITE_HOSTNAME = "docs.grindxp.app";
 
 export default {
   async fetch(request, env) {
