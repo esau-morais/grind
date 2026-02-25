@@ -51,6 +51,7 @@ jobs:
         working-directory: packages/cli
         env:
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GRIND_GOOGLE_CLIENT_SECRET: ${{ secrets.GRIND_GOOGLE_CLIENT_SECRET }}
         run: bun publish --no-git-checks --provenance --tolerate-republish
 
   build-binaries:
