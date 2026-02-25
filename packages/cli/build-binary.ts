@@ -8,12 +8,12 @@ function getNativeTarget(): string {
     const arch = parts[1];
     const libc = parts[2] ?? "gnu";
     if (os === "darwin") return `darwin-${arch}`;
-    if (os === "windows") return "windows-x64-msvc";
+    if (os === "windows") return "win32-x64-msvc";
     return `linux-${arch}-${libc}`;
   }
   const { platform, arch } = process;
   if (platform === "darwin") return arch === "arm64" ? "darwin-arm64" : "darwin-x64";
-  if (platform === "win32") return "windows-x64-msvc";
+  if (platform === "win32") return "win32-x64-msvc";
   return arch === "arm64" ? "linux-arm64-gnu" : "linux-x64-gnu";
 }
 
