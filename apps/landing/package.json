@@ -8,7 +8,9 @@
     "start": "astro dev --port 4321",
     "build": "astro build",
     "preview": "astro preview",
-    "typecheck": "astro check"
+    "typecheck": "astro check",
+    "cf:preview": "astro build && wrangler dev",
+    "cf:deploy": "astro build && wrangler deploy"
   },
   "dependencies": {
     "@astrojs/react": "^4.2.1",
@@ -34,6 +36,7 @@
     "@fontsource/instrument-serif": "5.2.8",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "wrangler": "4.68.1"
   }
 }
