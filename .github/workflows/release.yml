@@ -43,6 +43,8 @@ jobs:
 
       - name: Build
         working-directory: packages/cli
+        env:
+          GRIND_GOOGLE_CLIENT_SECRET: ${{ secrets.GRIND_GOOGLE_CLIENT_SECRET }}
         run: bun run build
 
       - name: Publish to npm

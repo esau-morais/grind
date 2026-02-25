@@ -161,6 +161,8 @@ export async function initCommand(): Promise<void> {
         }
 
         const flow = startOAuthFlow(provider, oauthConfig);
+        const completion = flow.method === "callback" ? flow.complete() : null;
+
         const openCmd =
           process.platform === "darwin"
             ? "open"
@@ -200,7 +202,7 @@ export async function initCommand(): Promise<void> {
           const spin2 = spinner();
           spin2.start("Waiting for browser authentication");
           try {
-            await flow.complete();
+            await completion;
             spin2.stop("Authenticated successfully.");
           } catch (err) {
             spin2.error("Authentication failed.");

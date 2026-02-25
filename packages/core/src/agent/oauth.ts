@@ -435,6 +435,15 @@ function waitForCallback(port: number, expectedState: string): Promise<string> {
       socket.once("close", () => openSockets.delete(socket));
     });
 
+    server.on("error", (err: NodeJS.ErrnoException) => {
+      shutdown();
+      const msg =
+        err.code === "EADDRINUSE"
+          ? `Port ${port} is already in use. Close any other grind processes and try again.`
+          : `Callback server error: ${err.message}`;
+      reject(new Error(msg));
+    });
+
     const timeoutHandle = setTimeout(() => {
       shutdown();
       reject(new Error("OAuth callback timed out after 120s"));

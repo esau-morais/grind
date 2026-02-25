@@ -257,6 +257,8 @@ async function runGoogleWizard(
     return { services: existingServices ?? {}, cancelled: true };
   }
 
+  const completion = flow.complete();
+
   p.log.step("Opening browser for Google authorization...");
   p.log.message(`If the browser does not open, visit:\n  ${flow.authUrl}`);
 
@@ -273,7 +275,7 @@ async function runGoogleWizard(
 
   let token: Awaited<ReturnType<typeof flow.complete>>;
   try {
-    token = await flow.complete();
+    token = await completion;
   } catch (err) {
     spin.error("Authorization failed.");
     p.log.error(err instanceof Error ? err.message : String(err));
