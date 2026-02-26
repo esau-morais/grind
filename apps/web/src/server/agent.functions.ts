@@ -109,7 +109,7 @@ export const streamMessage = createServerFn({ method: "POST" })
     const stored = await getConversationMessages(db, convId, 50);
     const modelMessages = storedToModelMessages(stored);
 
-    const toolCtx = { db, userId, timerPath, config };
+    const toolCtx = { db, userId, timerPath, config, trustLevel: companionRow?.trustLevel ?? 0 };
 
     const promptCtxBase = { user, quests: activeQuests, timer: null as null };
     const promptCtx = companionWithContext

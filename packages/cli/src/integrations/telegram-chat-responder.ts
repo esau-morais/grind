@@ -217,6 +217,7 @@ async function handleTelegramEvent(options: {
     userId: options.userId,
     timerPath: getTimerPath(),
     config: options.config,
+    trustLevel: companion?.trustLevel ?? 0,
     requestPermission: async (toolName: string, detail: string) => {
       if (options.alwaysAllowedTools.has(toolName)) {
         return "once";
