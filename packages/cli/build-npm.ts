@@ -25,14 +25,17 @@ cpSync("../core/drizzle", "./dist/drizzle", { recursive: true });
 // ── Embed web app ──────────────────────────────────────────────────────────
 const webDistDir = "../../apps/web/dist";
 
-if (existsSync(`${webDistDir}/server/server.js`)) {
-  cpSync(`${webDistDir}/server`, "./dist/web/server", { recursive: true });
-  cpSync(`${webDistDir}/client`, "./dist/web/client", { recursive: true });
-} else {
-  console.warn(
-    "Warning: apps/web not built, web embed skipped. Run `bun run --cwd apps/web build` first.",
-  );
+if (!existsSync(`${webDistDir}/server/server.js`)) {
+  console.log("Building web app…");
+  const webBuild = Bun.spawnSync(["bun", "run", "build"], { cwd: "../../apps/web" });
+  if (webBuild.exitCode !== 0) {
+    console.error("Failed to build web app.");
+    process.exit(1);
+  }
 }
+
+cpSync(`${webDistDir}/server`, "./dist/web/server", { recursive: true });
+cpSync(`${webDistDir}/client`, "./dist/web/client", { recursive: true });
 
 const outPath = "./dist/index.js";
 const existing = readFileSync(outPath, "utf8");
