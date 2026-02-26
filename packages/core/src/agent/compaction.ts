@@ -19,15 +19,16 @@ Be concise. This summary replaces the full conversation history.`;
 
 const MEMORY_FLUSH_PROMPT = `Session is nearing compaction.
 
-Before summarization, persist any durable user memory via tools:
-- store_insight for concise durable facts (pattern, preference, goal, context)
-- update_user_context only for high-level narrative context that should stay in a user notes blob
+Step 1: Call list_insights to see what is already stored.
+Step 2: Identify any durable facts from this session that are NOT already covered by existing insights.
+Step 3: Only call store_insight for genuinely new information. Do not re-store facts already captured — store_insight will merge exact duplicates but semantic duplicates waste space.
+Step 4: If everything worth keeping is already stored, reply exactly: NO_REPLY
 
 Rules:
 - Store only durable information likely to matter in future sessions.
 - Do not store transient chatter.
 - Keep insights short and factual.
-- If there is nothing useful to store, reply exactly: NO_REPLY`;
+- Prefer updating an existing insight over creating a new one when the content overlaps.`;
 
 export interface MemoryFlushResult {
   text: string;
@@ -54,8 +55,7 @@ export async function flushCompanionMemory(params: {
     messages: [...messages, { role: "user" as const, content: MEMORY_FLUSH_PROMPT }],
     tools,
     activeTools: ["list_insights", "store_insight", "update_user_context"],
-    stopWhen: stepCountIs(4),
-    maxOutputTokens: 128,
+    stopWhen: stepCountIs(6),
     maxRetries: 1,
     ...(abortSignal ? { abortSignal } : {}),
   });
