@@ -59,7 +59,13 @@ export async function startChat(): Promise<void> {
     listCompanionInsights(db, config.userId, 20),
   ]);
 
-  const toolCtx = { db, userId: config.userId, timerPath, config };
+  const toolCtx = {
+    db,
+    userId: config.userId,
+    timerPath,
+    config,
+    trustLevel: companion?.trustLevel ?? 0,
+  };
   const promptCtx = {
     user,
     quests,

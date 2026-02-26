@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray } from "drizzle-orm";
 
 import type { CompleteQuestInput, CreateQuestInput, Quest, QuestStatus } from "../../schema";
 import {
@@ -10,6 +10,7 @@ import {
 import { calculateQuestXp } from "../../xp";
 import { levelFromXp } from "../../xp";
 import { proofs, questLogs, quests, users } from "../schema";
+import type { QuestLogRow } from "../schema";
 import type { VaultDb } from "../types";
 import { type SkillGain, distributeSkillXp } from "./skills";
 
@@ -206,4 +207,62 @@ export async function completeQuest(
   });
 
   return { xpEarned: xpResult.totalXp, skillGains };
+}
+
+export interface UpdateQuestPatch {
+  title?: string;
+  description?: string | null;
+  type?: string;
+  difficulty?: string;
+  skillTags?: string[];
+  baseXp?: number;
+  scheduleCron?: string | null;
+  deadlineAt?: number | null;
+}
+
+export async function updateQuest(
+  db: VaultDb,
+  questId: string,
+  userId: string,
+  patch: UpdateQuestPatch,
+): Promise<Quest | null> {
+  const set: Record<string, unknown> = { updatedAt: Date.now() };
+  if (patch.title !== undefined) set.title = patch.title;
+  if (patch.description !== undefined) set.description = patch.description;
+  if (patch.type !== undefined) set.type = patch.type;
+  if (patch.difficulty !== undefined) set.difficulty = patch.difficulty;
+  if (patch.skillTags !== undefined) set.skillTags = patch.skillTags;
+  if (patch.baseXp !== undefined) set.baseXp = patch.baseXp;
+  if (patch.scheduleCron !== undefined) set.scheduleCron = patch.scheduleCron;
+  if (patch.deadlineAt !== undefined) set.deadlineAt = patch.deadlineAt;
+
+  const [row] = await db
+    .update(quests)
+    .set(set)
+    .where(and(eq(quests.id, questId), eq(quests.userId, userId)))
+    .returning();
+
+  return row ? rowToQuest(row) : null;
+}
+
+export interface ListQuestLogsOptions {
+  limit?: number;
+  since?: number;
+}
+
+export async function listQuestLogs(
+  db: VaultDb,
+  userId: string,
+  options: ListQuestLogsOptions = {},
+): Promise<QuestLogRow[]> {
+  const { limit = 20, since } = options;
+  const where = since
+    ? and(eq(questLogs.userId, userId), gte(questLogs.completedAt, since))
+    : eq(questLogs.userId, userId);
+
+  return db.query.questLogs.findMany({
+    where,
+    orderBy: [desc(questLogs.completedAt)],
+    limit,
+  });
 }

@@ -136,6 +136,20 @@ export async function findCompanionInsightByContent(
   return row ?? null;
 }
 
+export async function updateCompanionMode(
+  db: VaultDb,
+  userId: string,
+  mode: string,
+): Promise<CompanionSettingsRow> {
+  const [updated] = await db
+    .update(companionSettings)
+    .set({ mode, updatedAt: Date.now() })
+    .where(eq(companionSettings.userId, userId))
+    .returning();
+  if (!updated) throw new Error("Companion not found. Run `grindxp init` first.");
+  return updated;
+}
+
 export async function deleteCompanionInsight(
   db: VaultDb,
   insightId: string,

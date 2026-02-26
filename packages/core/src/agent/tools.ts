@@ -33,6 +33,7 @@ import { runForgeRuleNow } from "../forge";
 import { signals } from "../vault/schema";
 import {
   createCompanionInsight,
+  deleteCompanionInsight,
   deleteForgeRule,
   completeQuest,
   findCompanionInsightByContent,
@@ -48,10 +49,15 @@ import {
   listForgeRulesByUser,
   listForgeRunsByRule,
   listRecentForgeRunsByUser,
+  listQuestLogs,
   listQuestsByUser,
-  updateForgeRule,
+  listSignals,
+  listSkillsByUser,
   updateCompanionInsight,
+  updateCompanionMode,
   updateCompanionUserContext,
+  updateForgeRule,
+  updateQuest,
   updateQuestStatus,
 } from "../vault/repositories";
 import type { VaultDb } from "../vault/types";
@@ -63,8 +69,48 @@ export interface ToolContext {
   db: VaultDb;
   userId: string;
   timerPath: string;
+  trustLevel?: number;
   config?: GrindConfig;
   requestPermission?: (toolName: string, detail: string) => Promise<PermissionReply>;
+}
+
+const TRUST_LEVEL_NAMES = ["Watcher", "Advisor", "Scribe", "Agent", "Sovereign"] as const;
+
+const TOOL_TRUST_REQUIREMENTS: Record<string, number> = {
+  // Lv.2 Scribe: can act on behalf of the user
+  complete_quest: 2,
+  abandon_quest: 2,
+  activate_quest: 2,
+  start_timer: 2,
+  stop_timer: 2,
+  update_companion_mode: 2,
+  // Lv.3 Agent: can create and modify structure
+  create_quest: 3,
+  update_quest: 3,
+  create_forge_rule: 3,
+  update_forge_rule: 3,
+  delete_forge_rule: 3,
+  run_forge_rule: 3,
+  // Lv.4 Sovereign: destructive or sensitive operations
+  delete_insight: 4,
+};
+
+function requireTrust(
+  ctx: ToolContext,
+  toolName: string,
+): { denied: true; error: string } | { denied: false } {
+  const required = TOOL_TRUST_REQUIREMENTS[toolName];
+  if (required === undefined) return { denied: false };
+  const current = ctx.trustLevel ?? 0;
+  if (current < required) {
+    const requiredName = TRUST_LEVEL_NAMES[required] ?? `Lv.${required}`;
+    const currentName = TRUST_LEVEL_NAMES[current] ?? `Lv.${current}`;
+    return {
+      denied: true,
+      error: `Action requires trust level ${required} (${requiredName}). Current level: ${current} (${currentName}). Keep using the companion accurately to earn trust.`,
+    };
+  }
+  return { denied: false };
 }
 
 const MAX_FETCH_SIZE = 50 * 1024;
@@ -1503,6 +1549,9 @@ export function createGrindTools(ctx: ToolContext) {
         enabled: z.boolean().default(true).describe("Whether the rule starts enabled."),
       }),
       execute: async ({ name, triggerType, triggerConfig, actionType, actionConfig, enabled }) => {
+        const trust = requireTrust(ctx, "create_forge_rule");
+        if (trust.denied) return { error: trust.error };
+
         const normalized = await normalizeForgeRuleDefinition(ctx, {
           triggerType,
           triggerConfig,
@@ -1581,6 +1630,9 @@ export function createGrindTools(ctx: ToolContext) {
         actionConfig,
         enabled,
       }) => {
+        const trust = requireTrust(ctx, "update_forge_rule");
+        if (trust.denied) return { ok: false, error: trust.error };
+
         const rule = await findForgeRuleByPrefix(ctx.db, ctx.userId, ruleSearch);
         if (!rule) {
           return { ok: false, error: `No forge rule matching "${ruleSearch}".` };
@@ -1685,6 +1737,9 @@ export function createGrindTools(ctx: ToolContext) {
         ruleSearch: z.string().min(1).describe("Rule ID prefix or rule name substring."),
       }),
       execute: async ({ ruleSearch }) => {
+        const trust = requireTrust(ctx, "delete_forge_rule");
+        if (trust.denied) return { ok: false, error: trust.error };
+
         const rule = await findForgeRuleByPrefix(ctx.db, ctx.userId, ruleSearch);
         if (!rule) {
           return { ok: false, error: `No forge rule matching "${ruleSearch}".` };
@@ -1722,6 +1777,9 @@ export function createGrindTools(ctx: ToolContext) {
           .describe("When true, skip execution and record as dry run."),
       }),
       execute: async ({ ruleSearch, eventPayload, dryRun }) => {
+        const trust = requireTrust(ctx, "run_forge_rule");
+        if (trust.denied) return { ok: false, error: trust.error };
+
         const rule = await findForgeRuleByPrefix(ctx.db, ctx.userId, ruleSearch);
         if (!rule) {
           return { ok: false, error: `No forge rule matching "${ruleSearch}".` };
@@ -1852,6 +1910,9 @@ export function createGrindTools(ctx: ToolContext) {
           .describe("Base XP before multipliers. 10=small, 25=medium, 50=large, 100=epic"),
       }),
       execute: async ({ title, description, type, difficulty, skillTags, baseXp }) => {
+        const trust = requireTrust(ctx, "create_quest");
+        if (trust.denied) return { error: trust.error };
+
         const active = await listQuestsByUser(ctx.db, ctx.userId, ["active"]);
         if (active.length >= 5) {
           return { error: "Max 5 active quests. Complete or abandon one first." };
@@ -1899,6 +1960,9 @@ export function createGrindTools(ctx: ToolContext) {
           .describe("Duration in minutes if timer proof"),
       }),
       execute: async ({ questSearch, proofType, durationMinutes }) => {
+        const trust = requireTrust(ctx, "complete_quest");
+        if (trust.denied) return { error: trust.error };
+
         const quest = await findQuestByPrefix(ctx.db, ctx.userId, questSearch);
         if (!quest) return { error: `No quest matching "${questSearch}"` };
         if (quest.status === "completed") return { error: "Quest already completed" };
@@ -1940,6 +2004,9 @@ export function createGrindTools(ctx: ToolContext) {
         questSearch: z.string().describe("Quest ID prefix or title substring"),
       }),
       execute: async ({ questSearch }) => {
+        const trust = requireTrust(ctx, "abandon_quest");
+        if (trust.denied) return { error: trust.error };
+
         const quest = await findQuestByPrefix(ctx.db, ctx.userId, questSearch);
         if (!quest) return { error: `No quest matching "${questSearch}"` };
         if (quest.status !== "active") return { error: `Quest is ${quest.status}, not active` };
@@ -1961,6 +2028,9 @@ export function createGrindTools(ctx: ToolContext) {
         questSearch: z.string().describe("Quest ID prefix or title substring"),
       }),
       execute: async ({ questSearch }) => {
+        const trust = requireTrust(ctx, "start_timer");
+        if (trust.denied) return { error: trust.error };
+
         const existing = readTimer(ctx.timerPath);
         if (existing) {
           const elapsed = formatElapsed(existing.startedAt);
@@ -1993,6 +2063,9 @@ export function createGrindTools(ctx: ToolContext) {
           .describe("Whether to also complete the quest with timer-duration proof"),
       }),
       execute: async ({ complete }) => {
+        const trust = requireTrust(ctx, "stop_timer");
+        if (trust.denied) return { error: trust.error };
+
         const timer = readTimer(ctx.timerPath);
         if (!timer) return { error: "No timer running" };
 
@@ -2894,6 +2967,251 @@ export function createGrindTools(ctx: ToolContext) {
         }
 
         return { pattern, matches, totalMatches: matches.length, truncated };
+      },
+    }),
+
+    list_skills: tool({
+      description:
+        "List all skills with current XP, level, and category. Use this to see the full skill breakdown before making quest suggestions or updates.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const allSkills = await listSkillsByUser(ctx.db, ctx.userId);
+        return allSkills.map((s) => ({
+          id: s.id.slice(0, 8),
+          name: s.name,
+          category: s.category,
+          xp: s.xp,
+          level: s.level,
+        }));
+      },
+    }),
+
+    list_quest_logs: tool({
+      description:
+        "List recent quest completion history. Returns completions with XP earned, duration, and proof type. Use this to see what the user has actually done recently.",
+      inputSchema: z.object({
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(100)
+          .default(20)
+          .describe("Maximum number of logs to return"),
+        sinceDaysAgo: z
+          .number()
+          .int()
+          .min(1)
+          .max(90)
+          .optional()
+          .describe("Only return logs from this many days ago"),
+      }),
+      execute: async ({ limit, sinceDaysAgo }) => {
+        const since = sinceDaysAgo ? Date.now() - sinceDaysAgo * 24 * 60 * 60 * 1000 : undefined;
+        const logs = await listQuestLogs(ctx.db, ctx.userId, {
+          limit,
+          ...(since ? { since } : {}),
+        });
+
+        const questIds = [...new Set(logs.map((l) => l.questId))];
+        const questTitles: Record<string, string> = {};
+        for (const qid of questIds) {
+          const q = await getQuestById(ctx.db, qid);
+          if (q) questTitles[qid] = q.title;
+        }
+
+        return logs.map((l) => ({
+          questTitle: questTitles[l.questId] ?? l.questId.slice(0, 8),
+          completedAt: new Date(l.completedAt).toLocaleDateString(),
+          xpEarned: l.xpEarned,
+          durationMinutes: l.durationMinutes ?? null,
+          proofType: l.proofType,
+          streakDay: l.streakDay,
+        }));
+      },
+    }),
+
+    list_signals: tool({
+      description:
+        "List recently detected signals (git commits, file changes, process observations, webhook events). Use this to understand what the user has been doing passively.",
+      inputSchema: z.object({
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .default(20)
+          .describe("Maximum number of signals to return"),
+        source: z
+          .enum(["git", "file", "process", "webhook"])
+          .optional()
+          .describe("Filter by signal source"),
+      }),
+      execute: async ({ limit, source }) => {
+        const sigs = await listSignals(ctx.db, ctx.userId, {
+          limit,
+          ...(source ? { source } : {}),
+        });
+        return sigs.map((s) => ({
+          source: s.source,
+          type: s.type,
+          confidence: s.confidence,
+          detectedAt: new Date(s.detectedAt).toLocaleString(),
+          payload: s.payload,
+        }));
+      },
+    }),
+
+    update_quest: tool({
+      description:
+        "Update quest details: title, description, difficulty, type, baseXp, skillTags, or schedule. Does NOT change quest status — use abandon_quest or complete_quest for that.",
+      inputSchema: z
+        .object({
+          questSearch: z.string().describe("Quest ID prefix or title substring"),
+          title: z.string().min(1).max(256).optional().describe("New quest title"),
+          description: z.string().max(2000).nullable().optional().describe("New description"),
+          type: z
+            .enum(["daily", "weekly", "epic", "bounty", "chain", "ritual"])
+            .optional()
+            .describe("New quest type"),
+          difficulty: z
+            .enum(["easy", "medium", "hard", "epic"])
+            .optional()
+            .describe("New difficulty"),
+          skillTags: z.array(z.string()).optional().describe("Replace skill tags"),
+          baseXp: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe("New base XP (before multipliers)"),
+          scheduleCron: z
+            .string()
+            .nullable()
+            .optional()
+            .describe("New cron schedule (null to remove)"),
+        })
+        .refine(
+          (v) =>
+            v.title !== undefined ||
+            v.description !== undefined ||
+            v.type !== undefined ||
+            v.difficulty !== undefined ||
+            v.skillTags !== undefined ||
+            v.baseXp !== undefined ||
+            v.scheduleCron !== undefined,
+          { message: "Provide at least one field to update." },
+        ),
+      execute: async ({
+        questSearch,
+        title,
+        description,
+        type,
+        difficulty,
+        skillTags,
+        baseXp,
+        scheduleCron,
+      }) => {
+        const trust = requireTrust(ctx, "update_quest");
+        if (trust.denied) return { error: trust.error };
+
+        const quest = await findQuestByPrefix(ctx.db, ctx.userId, questSearch);
+        if (!quest) return { error: `No quest matching "${questSearch}"` };
+
+        const updated = await updateQuest(ctx.db, quest.id, ctx.userId, {
+          ...(title !== undefined ? { title } : {}),
+          ...(description !== undefined ? { description } : {}),
+          ...(type !== undefined ? { type } : {}),
+          ...(difficulty !== undefined ? { difficulty } : {}),
+          ...(skillTags !== undefined ? { skillTags } : {}),
+          ...(baseXp !== undefined ? { baseXp } : {}),
+          ...(scheduleCron !== undefined ? { scheduleCron } : {}),
+        });
+
+        if (!updated) return { error: "Failed to update quest." };
+
+        return {
+          ok: true,
+          id: updated.id.slice(0, 8),
+          title: updated.title,
+          type: updated.type,
+          difficulty: updated.difficulty,
+          skillTags: updated.skillTags,
+          baseXp: updated.baseXp,
+        };
+      },
+    }),
+
+    activate_quest: tool({
+      description:
+        "Move a quest from 'available' to 'active'. Use when the user is ready to start working on a quest that isn't active yet. Subject to the 5-quest active limit.",
+      inputSchema: z.object({
+        questSearch: z.string().describe("Quest ID prefix or title substring"),
+      }),
+      execute: async ({ questSearch }) => {
+        const trust = requireTrust(ctx, "activate_quest");
+        if (trust.denied) return { error: trust.error };
+
+        const quest = await findQuestByPrefix(ctx.db, ctx.userId, questSearch);
+        if (!quest) return { error: `No quest matching "${questSearch}"` };
+        if (quest.status === "active") return { error: "Quest is already active." };
+        if (quest.status === "completed")
+          return { error: "Quest is completed — cannot reactivate." };
+        if (quest.status === "abandoned")
+          return { error: "Quest is abandoned — cannot reactivate." };
+
+        const active = await listQuestsByUser(ctx.db, ctx.userId, ["active"]);
+        if (active.length >= 5) {
+          return { error: "Max 5 active quests. Complete or abandon one first." };
+        }
+
+        await updateQuestStatus(ctx.db, quest.id, ctx.userId, "active");
+
+        return { ok: true, quest: quest.title, status: "active" };
+      },
+    }),
+
+    delete_insight: tool({
+      description:
+        "Delete a stored companion insight. Only AI-observed insights can be deleted. User-stated insights are permanent and cannot be removed by the companion.",
+      inputSchema: z.object({
+        insightId: z.string().min(1).describe("Insight ID (full UUID or short ID prefix)"),
+      }),
+      execute: async ({ insightId }) => {
+        const trust = requireTrust(ctx, "delete_insight");
+        if (trust.denied) return { error: trust.error };
+
+        const insights = await listCompanionInsights(ctx.db, ctx.userId, 200);
+        const match = insights.find((i) => i.id === insightId || i.id.startsWith(insightId));
+
+        if (!match) return { error: `No insight matching "${insightId}"` };
+
+        if (match.source === "user-stated") {
+          return {
+            error:
+              "Cannot delete user-stated insights. These are facts you provided — they can only be updated, not removed.",
+          };
+        }
+
+        const deleted = await deleteCompanionInsight(ctx.db, match.id, ctx.userId);
+        if (!deleted) return { error: "Failed to delete insight." };
+
+        return { ok: true, deleted: true, content: match.content };
+      },
+    }),
+
+    update_companion_mode: tool({
+      description:
+        "Change the companion operating mode. 'suggest' = propose only, 'assist' = act on explicit requests, 'auto' = act proactively.",
+      inputSchema: z.object({
+        mode: z.enum(["off", "suggest", "assist", "auto"]).describe("New companion mode"),
+      }),
+      execute: async ({ mode }) => {
+        const trust = requireTrust(ctx, "update_companion_mode");
+        if (trust.denied) return { error: trust.error };
+
+        const updated = await updateCompanionMode(ctx.db, ctx.userId, mode);
+
+        return { ok: true, mode: updated.mode };
       },
     }),
 

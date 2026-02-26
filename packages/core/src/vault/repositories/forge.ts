@@ -194,6 +194,23 @@ export async function deleteForgeRule(
   return rows.length > 0;
 }
 
+export async function listSignals(
+  db: VaultDb,
+  userId: string,
+  options: { limit?: number; source?: SignalSource } = {},
+): Promise<Signal[]> {
+  const { limit = 20, source } = options;
+  const where = source
+    ? and(eq(signals.userId, userId), eq(signals.source, source))
+    : eq(signals.userId, userId);
+  const rows = await db.query.signals.findMany({
+    where,
+    orderBy: [desc(signals.detectedAt)],
+    limit,
+  });
+  return rows.map(rowToSignal);
+}
+
 export async function recordSignal(db: VaultDb, input: CreateSignalInput): Promise<Signal> {
   const valid = createSignalInputSchema.parse(input);
   const [row] = await db.insert(signals).values(valid).returning();
