@@ -2,9 +2,8 @@ import type { Plugin } from "@opencode-ai/plugin";
 
 export const PostEditPlugin: Plugin = async ({ $ }) => {
   return {
-    event: async ({ event }) => {
-      if (event.type !== "session.status") return;
-      if (event.properties.status.type !== "idle") return;
+    "tool.execute.after": async (input, _output) => {
+      if (input.tool !== "write" && input.tool !== "edit") return;
       await $`bun run lint`.quiet().nothrow();
       await $`bun run format`.quiet().nothrow();
     },
