@@ -1,0 +1,63 @@
+name: Sync Changelog
+
+on:
+  release:
+    types: [published]
+
+concurrency:
+  group: sync-changelog
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Prepend release notes to changelog.mdx
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+        run: |
+          set -euo pipefail
+
+          VERSION="${RELEASE_TAG#v}"
+          DATE=$(date -u +%Y-%m-%d)
+          FILE="docs/reference/changelog.mdx"
+          HEADING="## v${VERSION}"
+
+          # Skip if this version already exists (idempotent re-runs)
+          if grep -qF "${HEADING}" "${FILE}"; then
+            echo "Version ${VERSION} already in changelog, skipping."
+            exit 0
+          fi
+
+          NEW_SECTION="${HEADING} - ${DATE}"$'\n\n'"${RELEASE_BODY}"$'\n'
+
+          # Find the line number of the closing --- of the frontmatter
+          FRONTMATTER_END=$(awk '/^---/{count++; if(count==2){print NR; exit}}' "${FILE}")
+
+          # Insert the new section after the frontmatter blank line
+          {
+            head -n "${FRONTMATTER_END}" "${FILE}"
+            echo ""
+            echo "${NEW_SECTION}"
+            tail -n +"$((FRONTMATTER_END + 1))" "${FILE}" | sed '/^$/{ N; /^\n$/d; }' | tail -n +2
+          } > "${FILE}.tmp"
+          mv "${FILE}.tmp" "${FILE}"
+
+      - name: Commit changelog update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/reference/changelog.mdx
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "docs: update changelog for ${{ github.event.release.tag_name }} [skip ci]"
+          git push origin main
