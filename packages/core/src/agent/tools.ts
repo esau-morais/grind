@@ -429,23 +429,11 @@ async function resolveTelegramChatId(
     }
   }
 
-  // 4. Last resort: call Telegram getUpdates (only works when webhook is NOT registered).
-  //    When a webhook is active, Telegram returns 409 — use that as a signal to give the
-  //    right guidance rather than a confusing error.
-  const webhookActive = Boolean(
-    ctx.config?.gateway?.telegramWebhookSecret ?? freshConfig?.gateway?.telegramWebhookSecret,
-  );
-
-  if (webhookActive) {
-    // Don't bother calling getUpdates — it will 409. Just tell the user what to do.
-    return {
-      chatId: null,
-      source: "none",
-      detail:
-        "Send any message to your Telegram bot and I'll respond automatically. The chat ID will be captured on first contact.",
-    };
-  }
-
+  // 4. Last resort: call Telegram getUpdates directly. Works when no outgoing webhook is
+  //    registered via setWebhook on Telegram's side. If one is, Telegram returns 409 —
+  //    handled below. Note: telegramWebhookSecret in config is a local auth secret between
+  //    the polling listener and the gateway HTTP server; it does NOT indicate a Telegram
+  //    webhook registration and must not be used as a proxy for that.
   const updatesResponse = await fetch(
     `https://api.telegram.org/bot${token}/getUpdates?limit=50&timeout=0`,
     {
@@ -516,6 +504,7 @@ function persistTelegramDefaultChatId(ctx: ToolContext, chatId: string): void {
 
   if (ctx.config.gateway.telegramDefaultChatId === chatId) return;
 
+  // Keep the in-memory ctx.config in sync for subsequent calls in this session.
   ctx.config = {
     ...ctx.config,
     gateway: {
@@ -524,7 +513,11 @@ function persistTelegramDefaultChatId(ctx: ToolContext, chatId: string): void {
     },
   };
 
-  writeGrindConfig(ctx.config);
+  // Re-read from disk before writing to avoid overwriting changes made by other processes
+  // (e.g., the gateway or CLI commands) since this context was created.
+  const onDisk = readGrindConfig();
+  if (!onDisk?.gateway) return;
+  writeGrindConfig({ ...onDisk, gateway: { ...onDisk.gateway, telegramDefaultChatId: chatId } });
 }
 
 const FORGE_TRIGGER_TYPES = ["cron", "event", "signal", "webhook", "manual"] as const;

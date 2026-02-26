@@ -13,6 +13,7 @@ import {
   listConversations,
   listQuestsByUser,
   markdownToTelegramHtml,
+  readGrindConfig,
   readTimer,
   resolveModel,
   runAgent,
@@ -448,18 +449,15 @@ function ensureTrustedTelegramChat(
   chatId: string,
 ): boolean {
   if (!options.trustedChatId) {
-    if (!options.config.gateway) {
+    // Re-read from disk before writing to avoid overwriting changes made by other processes
+    // (e.g., CLI commands, agent tools) since the gateway's config snapshot was created.
+    const onDisk = readGrindConfig() ?? options.config;
+    const gatewayBase = onDisk.gateway ?? options.config.gateway;
+    if (!gatewayBase) {
       return false;
     }
 
-    const nextConfig: GrindConfig = {
-      ...options.config,
-      gateway: {
-        ...options.config.gateway,
-        telegramDefaultChatId: chatId,
-      },
-    };
-    writeGrindConfig(nextConfig);
+    writeGrindConfig({ ...onDisk, gateway: { ...gatewayBase, telegramDefaultChatId: chatId } });
     options.setTrustedChatId(chatId);
     options.onWarn?.(`Auto-set telegramDefaultChatId to ${chatId}.`);
     return true;
