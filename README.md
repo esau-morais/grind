@@ -34,7 +34,7 @@ grindxp quest create
 grindxp status
 ```
 
-See the [Getting Started guide](https://docs.grindxp.app/start/quickstart) for a full walkthrough.
+See the [Getting Started guide](https://docs.grindxp.app/get-started/quickstart) for a full walkthrough.
 
 ## Packages
 
