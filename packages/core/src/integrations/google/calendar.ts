@@ -177,6 +177,20 @@ export async function listCalendars(serviceConfig: GoogleServiceConfig): Promise
   return data.items ?? [];
 }
 
+export async function createCalendar(
+  serviceConfig: GoogleServiceConfig,
+  summary: string,
+  timeZone?: string,
+): Promise<CalendarItem> {
+  const body: Record<string, unknown> = { summary };
+  if (timeZone) body.timeZone = timeZone;
+  const resp = await googleFetch(`${BASE}/calendars`, serviceConfig, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  return resp.json() as Promise<CalendarItem>;
+}
+
 // ── Formatting ────────────────────────────────────────────────────────────────
 
 function getEventDateKey(event: CalendarEvent, tz: string): string {
