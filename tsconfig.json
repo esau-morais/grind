@@ -22,9 +22,7 @@
       "@grindxp/cli/*": ["packages/cli/src/*"],
       "@grindxp/tui": ["packages/tui/src/index.tsx"],
       "@grindxp/tui/chat": ["packages/tui/src/chat-entry.ts"],
-      "@grindxp/tui/*": ["packages/tui/src/*"],
-      "@grindxp/web": ["packages/web/src/index.ts"],
-      "@grindxp/web/*": ["packages/web/src/*"]
+      "@grindxp/tui/*": ["packages/tui/src/*"]
     }
   },
   "exclude": [".opencode"]

@@ -156,20 +156,24 @@ type WebResolution =
   | { ok: false; reason: "not-installed" | "not-built" };
 
 function resolveWeb(): WebResolution {
-  let webDir: string;
+  // Production: embedded in CLI dist at build time
+  const embedded = join(import.meta.dir, "web", "server", "server.js");
+  if (existsSync(embedded)) {
+    return { ok: true, serverEntry: embedded };
+  }
+
+  // Dev: workspace resolution
   try {
     const pkgJson = Bun.resolveSync("@grindxp/web/package.json", import.meta.dir);
-    webDir = dirname(pkgJson);
+    const webDir = dirname(pkgJson);
+    const serverEntry = join(webDir, "dist", "server", "server.js");
+    if (!existsSync(serverEntry)) {
+      return { ok: false, reason: "not-built" };
+    }
+    return { ok: true, serverEntry };
   } catch {
-    return { ok: false, reason: "not-installed" };
-  }
-
-  const serverEntry = join(webDir, "dist", "server", "server.js");
-  if (!existsSync(serverEntry)) {
     return { ok: false, reason: "not-built" };
   }
-
-  return { ok: true, serverEntry };
 }
 
 async function isPortReachable(port: number): Promise<boolean> {
