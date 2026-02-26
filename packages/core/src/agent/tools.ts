@@ -10,10 +10,14 @@ import { markdownToTelegramHtml } from "../gateway/telegram-format";
 import { getOAuthToken } from "./auth-store";
 import {
   type CalendarEvent,
+  type CalendarItem,
+  createCalendar,
   createCalendarEvent,
   deleteCalendarEvent,
   getMessage,
+  GoogleApiError,
   GoogleNotConnectedError,
+  GoogleTokenExpiredError,
   listCalendarEvents,
   listCalendars,
   listMessages,
@@ -185,6 +189,40 @@ async function requirePermission(
   const reply = await ctx.requestPermission(toolName, detail);
   if (reply === "deny") return { denied: true, error: "Permission denied by user" };
   return { denied: false };
+}
+
+function classifyGoogleError(err: unknown): string {
+  if (err instanceof GoogleNotConnectedError || err instanceof GoogleTokenExpiredError) {
+    return "Google account not connected or session expired. Run `grindxp integrations connect google`.";
+  }
+  if (err instanceof GoogleApiError) {
+    switch (err.status) {
+      case 401:
+        return "Google account disconnected. Run `grindxp integrations connect google`.";
+      case 403:
+        return "No write access to this calendar. Check the calendar's sharing settings.";
+      case 404:
+        return "Calendar or event not found. Use list_calendars to verify available calendar IDs.";
+      case 409:
+        return "Conflict — this event may already exist on the calendar.";
+      case 410:
+        return "Sync token expired — a full re-sync will happen on the next poll.";
+    }
+    if (err.status >= 500) {
+      return "Google Calendar is temporarily unavailable. Try again in a moment.";
+    }
+    if (err.status === 400) {
+      try {
+        const parsed = JSON.parse(err.body) as { error?: { message?: string } };
+        const msg = parsed?.error?.message;
+        if (msg) return `Invalid request: ${msg}`;
+      } catch {
+        // fall through
+      }
+      return "Invalid request — check the calendar ID and date format.";
+    }
+  }
+  return err instanceof Error ? err.message : String(err);
 }
 
 async function extractText(html: string): Promise<string> {
@@ -984,7 +1022,7 @@ export function createGrindTools(ctx: ToolContext) {
           const calendars = await listCalendars(googleConfig);
           return { ok: true, calendars, count: calendars.length };
         } catch (err) {
-          return { ok: false, error: err instanceof Error ? err.message : String(err) };
+          return { ok: false, error: classifyGoogleError(err) };
         }
       },
     }),
@@ -1110,14 +1148,16 @@ export function createGrindTools(ctx: ToolContext) {
           });
           return { ok: true, events: result.events, count: result.events.length };
         } catch (err) {
-          return { ok: false, error: err instanceof Error ? err.message : String(err) };
+          return { ok: false, error: classifyGoogleError(err) };
         }
       },
     }),
 
     create_calendar_event: tool({
       description:
-        "Create a new event in Google Calendar. Creates in the primary calendar by default. Use list_calendars to find other calendar IDs if needed.",
+        "Create a new event in Google Calendar. " +
+        "If the user names a specific calendar (anything other than 'primary'), call list_calendars first to resolve its id, then pass that id as calendarId. " +
+        "If the calendar does not exist yet, call create_calendar first, then use the returned id.",
       inputSchema: z.object({
         summary: z.string().min(1).max(500).describe("Event title"),
         startDateTime: z.string().describe("Start time (ISO 8601, e.g. 2026-02-21T09:00:00)"),
@@ -1133,6 +1173,12 @@ export function createGrindTools(ctx: ToolContext) {
           .optional()
           .describe("If true, treats startDateTime/endDateTime as dates (YYYY-MM-DD)"),
         timeZone: z.string().optional().describe("IANA timezone name (e.g. America/New_York)"),
+        calendarId: z
+          .string()
+          .optional()
+          .describe(
+            "Calendar ID to create the event in. Use list_calendars to resolve a calendar name to its id. Defaults to the primary calendar.",
+          ),
       }),
       execute: async ({
         summary,
@@ -1143,6 +1189,7 @@ export function createGrindTools(ctx: ToolContext) {
         attendees,
         allDay,
         timeZone,
+        calendarId,
       }) => {
         const googleConfig = ctx.config?.services?.google;
         if (!googleConfig) {
@@ -1152,19 +1199,51 @@ export function createGrindTools(ctx: ToolContext) {
           };
         }
         try {
-          const event = await createCalendarEvent(googleConfig, {
-            summary,
-            startDateTime,
-            endDateTime,
-            ...(description ? { description } : {}),
-            ...(location ? { location } : {}),
-            ...(attendees ? { attendees } : {}),
-            ...(allDay ? { allDay } : {}),
-            ...(timeZone ? { timeZone } : {}),
-          });
+          const event = await createCalendarEvent(
+            googleConfig,
+            {
+              summary,
+              startDateTime,
+              endDateTime,
+              ...(description ? { description } : {}),
+              ...(location ? { location } : {}),
+              ...(attendees ? { attendees } : {}),
+              ...(allDay ? { allDay } : {}),
+              ...(timeZone ? { timeZone } : {}),
+            },
+            calendarId ?? "primary",
+          );
           return { ok: true, event };
         } catch (err) {
-          return { ok: false, error: err instanceof Error ? err.message : String(err) };
+          return { ok: false, error: classifyGoogleError(err) };
+        }
+      },
+    }),
+
+    create_calendar: tool({
+      description:
+        "Create a new Google Calendar. After creation, use the returned id with create_calendar_event to add events to it. " +
+        "Use this when the user asks to create a calendar that does not yet exist in their list.",
+      inputSchema: z.object({
+        summary: z.string().min(1).max(255).describe("Calendar name (e.g. 'Work', 'God', 'Study')"),
+        timeZone: z
+          .string()
+          .optional()
+          .describe("IANA timezone name for the calendar (e.g. America/Sao_Paulo)"),
+      }),
+      execute: async ({ summary, timeZone }) => {
+        const googleConfig = ctx.config?.services?.google;
+        if (!googleConfig) {
+          return {
+            ok: false,
+            error: "Google account not connected. Run `grindxp integrations connect google`.",
+          };
+        }
+        try {
+          const calendar = await createCalendar(googleConfig, summary, timeZone);
+          return { ok: true, calendar };
+        } catch (err) {
+          return { ok: false, error: classifyGoogleError(err) };
         }
       },
     }),
@@ -1219,7 +1298,7 @@ export function createGrindTools(ctx: ToolContext) {
           );
           return { ok: true, event };
         } catch (err) {
-          return { ok: false, error: err instanceof Error ? err.message : String(err) };
+          return { ok: false, error: classifyGoogleError(err) };
         }
       },
     }),
@@ -1242,7 +1321,7 @@ export function createGrindTools(ctx: ToolContext) {
           await deleteCalendarEvent(googleConfig, eventId, calendarId ?? "primary");
           return { ok: true, eventId };
         } catch (err) {
-          return { ok: false, error: err instanceof Error ? err.message : String(err) };
+          return { ok: false, error: classifyGoogleError(err) };
         }
       },
     }),
