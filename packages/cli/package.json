@@ -1,55 +1,53 @@
 {
-  "name": "@grindxp/cli",
-  "version": "0.1.6",
-  "description": "Grind — a gamified productivity CLI. Track quests, earn XP, build streaks.",
-  "keywords": [
-    "cli",
-    "gamification",
-    "productivity",
-    "quests",
-    "streaks",
-    "xp"
-  ],
-  "homepage": "https://grindxp.app",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/esau-morais/grind.git"
-  },
-  "bin": {
-    "grindxp": "./dist/index.js"
-  },
-  "files": [
-    "dist"
-  ],
-  "type": "module",
-  "main": "./dist/index.js",
-  "exports": {
-    ".": "./dist/index.js"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "scripts": {
-    "start": "bun src/index.ts",
-    "build": "bun build-npm.ts && chmod +x dist/index.js",
-    "build:binary": "bun build-binary.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "prepublishOnly": "bun run build && bun run typecheck"
-  },
-  "dependencies": {
-    "@libsql/client": "^0.15.15",
-    "@opentui/core": "0.1.82"
-  },
-  "devDependencies": {
-    "@clack/prompts": "^1.0.1",
-    "@grindxp/core": "workspace:*",
-    "@grindxp/tui": "workspace:*",
-    "@types/qrcode-terminal": "0.12.2",
-    "@whiskeysockets/baileys": "7.0.0-rc.9",
-    "qrcode-terminal": "0.12.0"
-  },
-  "engines": {
-    "bun": ">=1.0.0"
-  }
+	"name": "@grindxp/cli",
+	"version": "0.1.7",
+	"description": "Grind — a gamified productivity CLI. Track quests, earn XP, build streaks.",
+	"keywords": [
+		"cli",
+		"gamification",
+		"productivity",
+		"quests",
+		"streaks",
+		"xp"
+	],
+	"homepage": "https://grindxp.app",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/esau-morais/grind.git"
+	},
+	"bin": {
+		"grindxp": "./dist/index.js"
+	},
+	"files": ["dist"],
+	"type": "module",
+	"main": "./dist/index.js",
+	"exports": {
+		".": "./dist/index.js"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"scripts": {
+		"start": "bun src/index.ts",
+		"build": "bun build-npm.ts && chmod +x dist/index.js",
+		"build:binary": "bun build-binary.ts",
+		"typecheck": "tsc -p tsconfig.json --noEmit",
+		"prepublishOnly": "bun run build && bun run typecheck"
+	},
+	"dependencies": {
+		"@libsql/client": "^0.15.15",
+		"@opentui/core": "0.1.82"
+	},
+	"devDependencies": {
+		"@clack/prompts": "^1.0.1",
+		"@grindxp/core": "workspace:*",
+		"@grindxp/tui": "workspace:*",
+		"@types/qrcode-terminal": "0.12.2",
+		"@whiskeysockets/baileys": "7.0.0-rc.9",
+		"qrcode-terminal": "0.12.0"
+	},
+	"engines": {
+		"bun": ">=1.0.0"
+	}
 }
