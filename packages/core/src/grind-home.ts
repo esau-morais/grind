@@ -1,6 +1,6 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { z } from "zod";
 
@@ -111,9 +111,26 @@ export function getServiceStatePath(): string {
 }
 
 export function getMigrationsPath(): string {
-  const bundled = join(import.meta.dir, "drizzle");
-  if (existsSync(join(bundled, "meta", "_journal.json"))) return bundled;
-  return join(import.meta.dir, "../drizzle");
+  const candidates = [
+    join(import.meta.dir, "drizzle"),
+    join(import.meta.dir, "../drizzle"),
+    join(dirname(process.execPath), "drizzle"),
+    join(getGrindHome(), "drizzle"),
+  ];
+
+  for (const candidate of candidates) {
+    if (existsSync(join(candidate, "meta", "_journal.json"))) {
+      return candidate;
+    }
+  }
+
+  throw new Error(
+    [
+      "Missing database migrations (meta/_journal.json).",
+      "Reinstall grindxp to restore runtime files:",
+      "  curl -fsSL https://grindxp.app/install.sh | bash",
+    ].join("\n"),
+  );
 }
 
 export function ensureGrindHome(): void {

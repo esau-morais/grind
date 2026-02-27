@@ -42,6 +42,7 @@ case "$ARCH" in
 esac
 
 BINARY_NAME="grind-${OS_NAME}-${ARCH_NAME}"
+ARCHIVE_NAME="${BINARY_NAME}.tar.gz"
 
 # ── Resolve version ───────────────────────────────────────────────────────────
 
@@ -59,7 +60,8 @@ if [[ -z "$GRIND_VERSION" ]]; then
   fi
 fi
 
-DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${GRIND_VERSION}/${BINARY_NAME}"
+DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${GRIND_VERSION}/${ARCHIVE_NAME}"
+LEGACY_DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${GRIND_VERSION}/${BINARY_NAME}"
 
 # ── Download & install ────────────────────────────────────────────────────────
 
@@ -68,9 +70,47 @@ echo "Installing grindxp v${GRIND_VERSION} (${OS_NAME}/${ARCH_NAME})..."
 mkdir -p "$GRIND_INSTALL_DIR"
 DEST="${GRIND_INSTALL_DIR}/${PRIMARY_CMD}"
 ALIAS_DEST="${GRIND_INSTALL_DIR}/${ALIAS_CMD}"
+DRIZZLE_DEST="${GRIND_INSTALL_DIR}/drizzle"
 
-curl -fsSL --progress-bar "$DOWNLOAD_URL" -o "$DEST"
-chmod +x "$DEST"
+TMP_DIR="$(mktemp -d)"
+cleanup() {
+  rm -rf "$TMP_DIR"
+}
+trap cleanup EXIT
+
+ARCHIVE_PATH="${TMP_DIR}/${ARCHIVE_NAME}"
+
+if curl -fsSL --progress-bar "$DOWNLOAD_URL" -o "$ARCHIVE_PATH"; then
+  if ! command -v tar >/dev/null 2>&1; then
+    echo "error: 'tar' is required to install grindxp." >&2
+    exit 1
+  fi
+
+  tar -xzf "$ARCHIVE_PATH" -C "$TMP_DIR"
+
+  if [[ ! -f "${TMP_DIR}/${BINARY_NAME}" ]]; then
+    echo "error: downloaded archive is missing ${BINARY_NAME}" >&2
+    exit 1
+  fi
+
+  if [[ ! -f "${TMP_DIR}/drizzle/meta/_journal.json" ]]; then
+    echo "error: downloaded archive is missing bundled migrations" >&2
+    exit 1
+  fi
+
+  cp "${TMP_DIR}/${BINARY_NAME}" "$DEST"
+  chmod +x "$DEST"
+
+  rm -rf "$DRIZZLE_DEST"
+  cp -R "${TMP_DIR}/drizzle" "$DRIZZLE_DEST"
+else
+  echo "Archive bundle not available for v${GRIND_VERSION}; falling back to legacy binary format..."
+  curl -fsSL --progress-bar "$LEGACY_DOWNLOAD_URL" -o "$DEST"
+  chmod +x "$DEST"
+fi
+
+trap - EXIT
+cleanup
 
 if [[ -e "$ALIAS_DEST" || -L "$ALIAS_DEST" ]]; then
   rm -f "$ALIAS_DEST"

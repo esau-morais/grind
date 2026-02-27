@@ -107,6 +107,20 @@ jobs:
           OUTFILE="../../dist/${OUTFILE}" \
           bun run --cwd packages/cli build:binary
 
+      - name: Package binary bundle
+        if: matrix.os != 'windows'
+        shell: bash
+        run: |
+          BINARY_NAME="grind-${{ matrix.os }}-${{ matrix.arch }}"
+          ARCHIVE_NAME="${BINARY_NAME}.tar.gz"
+
+          rm -rf dist/release-bundle
+          mkdir -p dist/release-bundle
+          cp "dist/${BINARY_NAME}" "dist/release-bundle/${BINARY_NAME}"
+          cp -R packages/core/drizzle dist/release-bundle/drizzle
+          tar -czf "dist/${ARCHIVE_NAME}" -C dist/release-bundle .
+          rm -rf dist/release-bundle
+
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
