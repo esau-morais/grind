@@ -1788,8 +1788,7 @@ export function createGrindTools(ctx: ToolContext) {
         let nextActionConfig = actionConfig;
 
         if (updatesDefinition) {
-          const allowsEmptyTriggerConfig =
-            triggerType === "webhook" || triggerType === "manual";
+          const allowsEmptyTriggerConfig = triggerType === "webhook" || triggerType === "manual";
 
           if (
             triggerType !== undefined &&
