@@ -13,6 +13,7 @@ import {
   updateCompanionInsight,
   updateCompanionSoul,
   updateCompanionUserContext,
+  upsertCompanion,
 } from "@grindxp/core/vault";
 import type { CliContext } from "../context";
 
@@ -329,6 +330,100 @@ export async function companionMemoryEditCommand(
     source: "user-stated",
   });
   p.log.success(`Updated insight ${updated.id.slice(0, 8)}.`);
+}
+
+const TRUST_LEVELS: Array<{ level: number; name: string; description: string; minScore: number }> =
+  [
+    {
+      level: 0,
+      name: "Watcher",
+      minScore: 0,
+      description: "Read-only. Manages forge rules by risk (notifications/reminders freely).",
+    },
+    {
+      level: 1,
+      name: "Advisor",
+      minScore: 10,
+      description: "Can suggest quests.",
+    },
+    {
+      level: 2,
+      name: "Scribe",
+      minScore: 25,
+      description: "Can complete/abandon quests, start/stop timers, update companion mode.",
+    },
+    {
+      level: 3,
+      name: "Agent",
+      minScore: 50,
+      description: "Can create and update quests.",
+    },
+    {
+      level: 4,
+      name: "Sovereign",
+      minScore: 100,
+      description: "Can delete insights.",
+    },
+  ];
+
+export async function companionTrustCommand(ctx: CliContext, levelArg?: string): Promise<void> {
+  const companion = await requireCompanion(ctx);
+
+  if (levelArg === undefined) {
+    const currentName =
+      TRUST_LEVELS.find((t) => t.level === companion.trustLevel)?.name ??
+      `Lv.${companion.trustLevel}`;
+
+    p.note(
+      [
+        `Current: ${currentName} (level ${companion.trustLevel}, score ${companion.trustScore})`,
+        "",
+        "Available levels:",
+        ...TRUST_LEVELS.map((t) => {
+          const marker = t.level === companion.trustLevel ? "▶" : " ";
+          return `  ${marker} ${t.level} ${t.name.padEnd(10)} ${t.description}`;
+        }),
+        "",
+        "Grant trust: grindxp companion trust <0-4>",
+      ].join("\n"),
+      "Companion Trust",
+    );
+    return;
+  }
+
+  const parsed = Number.parseInt(levelArg, 10);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 4) {
+    p.log.error("Trust level must be 0–4.");
+    return;
+  }
+
+  const target = TRUST_LEVELS[parsed];
+  if (!target) {
+    p.log.error("Invalid trust level.");
+    return;
+  }
+
+  if (parsed === companion.trustLevel) {
+    p.log.info(`Companion is already at ${target.name} (level ${parsed}).`);
+    return;
+  }
+
+  const action = parsed > companion.trustLevel ? "Grant" : "Revoke to";
+  const confirm = await p.confirm({
+    message: `${action} trust level ${parsed} (${target.name})? ${target.description}`,
+  });
+  if (p.isCancel(confirm) || !confirm) {
+    p.cancel("Cancelled.");
+    return;
+  }
+
+  await upsertCompanion(ctx.db, {
+    ...companion,
+    trustLevel: parsed as 0 | 1 | 2 | 3 | 4,
+    trustScore: Math.max(companion.trustScore, target.minScore),
+  });
+
+  p.log.success(`Trust updated to ${target.name} (level ${parsed}).`);
 }
 
 export async function companionMemoryDeleteCommand(

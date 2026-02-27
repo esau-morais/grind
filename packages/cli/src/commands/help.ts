@@ -78,6 +78,7 @@ export function showCommandHelp(command: string | undefined, sub: string): void 
           "Usage: grindxp companion <subcommand>",
           "",
           cmd("(none)", "Show companion settings"),
+          cmd("trust [level]", "Show or set companion trust level (0–4)"),
           cmd("soul", "Edit companion personality in $EDITOR"),
           cmd("context [--refresh]", "View or refresh your user context"),
           cmd("memory, insights", "List stored insights"),

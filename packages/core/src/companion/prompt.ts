@@ -11,11 +11,11 @@ import { xpForLevelThreshold } from "../xp/constants";
 import { DEFAULT_SOUL } from "./engine";
 
 const TRUST_CAPABILITIES: Record<number, string> = {
-  0: "observe signals, read vault",
-  1: "suggest quests and forge rules",
-  2: "draft low/medium-risk forge rules (approval required)",
-  3: "auto-enable low-risk forge rules",
-  4: "auto-enable low/medium-risk forge rules",
+  0: "read vault and signals; manage all forge rules autonomously (notifications/reminders freely, XP-impacting rules with a brief note)",
+  1: "everything above, plus suggest quests",
+  2: "everything above, plus complete/abandon/activate quests, start/stop timers, update companion mode",
+  3: "everything above, plus create and update quests",
+  4: "everything above, plus delete insights",
 };
 
 const LEVEL_TITLES: Record<number, string> = {

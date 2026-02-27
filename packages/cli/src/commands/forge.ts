@@ -171,9 +171,14 @@ export async function forgeCreateCommand(ctx: CliContext): Promise<void> {
   const actionType = await p.select({
     message: "Action type:",
     options: [
-      { value: "queue-quest", label: "queue-quest", hint: "Low risk" },
-      { value: "log-to-vault", label: "log-to-vault", hint: "Medium risk" },
-      { value: "send-notification", label: "send-notification", hint: "Low risk" },
+      {
+        value: "send-notification",
+        label: "send-notification",
+        hint: "Send a message or run a script whose stdout becomes the message",
+      },
+      { value: "run-script", label: "run-script", hint: "Execute a shell script silently" },
+      { value: "queue-quest", label: "queue-quest", hint: "Activate a quest" },
+      { value: "log-to-vault", label: "log-to-vault", hint: "Auto-log an activity and award XP" },
     ],
   });
   if (p.isCancel(actionType)) return bail();
@@ -336,6 +341,36 @@ export async function forgeCreateCommand(ctx: CliContext): Promise<void> {
         actionConfig.token = accessToken;
       }
     }
+  }
+
+  if (actionType === "run-script") {
+    const script = await p.text({
+      message: "Shell script to execute:",
+      placeholder: "curl -s https://example.com/data | jq .price",
+      validate: (value) => (!value?.trim() ? "Script is required." : undefined),
+    });
+    if (p.isCancel(script)) return bail();
+    actionConfig.script = (script as string).trim();
+
+    const timeoutRaw = await p.text({
+      message: "Timeout in seconds (default 30):",
+      placeholder: "30",
+      defaultValue: "30",
+      validate: (value) => {
+        const parsed = Number.parseInt(value ?? "", 10);
+        if (!Number.isInteger(parsed) || parsed <= 0) return "Enter a positive integer.";
+        return undefined;
+      },
+    });
+    if (p.isCancel(timeoutRaw)) return bail();
+    actionConfig.timeout = Number.parseInt(String(timeoutRaw), 10) * 1_000;
+
+    const workdir = await p.text({
+      message: "Working directory (optional):",
+      placeholder: "~/projects/myapp",
+    });
+    if (p.isCancel(workdir)) return bail();
+    if (workdir) actionConfig.workdir = workdir;
   }
 
   const rule = await insertForgeRule(ctx.db, {

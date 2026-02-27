@@ -15,6 +15,7 @@ import { ChatApp } from "./ChatApp";
 import type { TuiContext } from "./lib/context";
 import { buildIntegrationSummary } from "./lib/integrations";
 import { StoreProvider } from "./lib/store";
+import { ThemeProvider } from "./theme/context";
 
 export async function startChat(): Promise<void> {
   const config = readGrindConfig();
@@ -87,18 +88,20 @@ export async function startChat(): Promise<void> {
   const root = createRoot(renderer);
 
   root.render(
-    <StoreProvider ctx={tuiCtx}>
-      <ChatApp
-        model={model}
-        aiConfig={config.ai}
-        toolCtx={toolCtx}
-        promptCtx={promptCtx}
-        db={db}
-        userId={config.userId}
-        provider={config.ai.provider}
-        autoCompact={config.ai.autoCompact !== false}
-      />
-    </StoreProvider>,
+    <ThemeProvider {...(config.theme ? { initialTheme: config.theme } : {})}>
+      <StoreProvider ctx={tuiCtx}>
+        <ChatApp
+          model={model}
+          aiConfig={config.ai}
+          toolCtx={toolCtx}
+          promptCtx={promptCtx}
+          db={db}
+          userId={config.userId}
+          provider={config.ai.provider}
+          autoCompact={config.ai.autoCompact !== false}
+        />
+      </StoreProvider>
+    </ThemeProvider>,
   );
 
   renderer.on("destroy", () => {
