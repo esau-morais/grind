@@ -5,10 +5,14 @@ GRIND_INSTALL_DIR="${GRIND_INSTALL_DIR:-$HOME/.grind/bin}"
 GRIND_VERSION="${GRIND_VERSION:-}"
 REPO="esau-morais/grind"
 NO_INIT=0
+PRIMARY_CMD="grindxp"
+ALIAS_CMD="grind"
 
 for arg in "$@"; do
   case "$arg" in
-    --no-init) NO_INIT=1 ;;
+    --no-init)
+      NO_INIT=1
+      ;;
   esac
 done
 
@@ -59,13 +63,19 @@ DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${GRIND_VERSION}/${B
 
 # ── Download & install ────────────────────────────────────────────────────────
 
-echo "Installing grind v${GRIND_VERSION} (${OS_NAME}/${ARCH_NAME})..."
+echo "Installing grindxp v${GRIND_VERSION} (${OS_NAME}/${ARCH_NAME})..."
 
 mkdir -p "$GRIND_INSTALL_DIR"
-DEST="${GRIND_INSTALL_DIR}/grind"
+DEST="${GRIND_INSTALL_DIR}/${PRIMARY_CMD}"
+ALIAS_DEST="${GRIND_INSTALL_DIR}/${ALIAS_CMD}"
 
 curl -fsSL --progress-bar "$DOWNLOAD_URL" -o "$DEST"
 chmod +x "$DEST"
+
+if [[ -e "$ALIAS_DEST" || -L "$ALIAS_DEST" ]]; then
+  rm -f "$ALIAS_DEST"
+fi
+ln -s "$DEST" "$ALIAS_DEST"
 
 # ── PATH setup ────────────────────────────────────────────────────────────────
 
@@ -112,9 +122,29 @@ fi
 # ── Done ──────────────────────────────────────────────────────────────────────
 
 echo ""
-echo "grind v${GRIND_VERSION} installed to ${DEST}"
+echo "grindxp v${GRIND_VERSION} installed to ${DEST}"
+echo "Added compatibility alias: ${ALIAS_DEST} -> ${DEST}"
 
-if [[ "$NO_INIT" -eq 0 ]]; then
+if ! command -v "$PRIMARY_CMD" >/dev/null 2>&1; then
   echo ""
-  "$DEST" init
+  echo "Note: '$PRIMARY_CMD' is not available in this shell yet."
+  echo "Open a new terminal or run: source ~/.zshrc (or ~/.bashrc)"
+fi
+
+if [[ "$NO_INIT" -eq 1 ]]; then
+  echo ""
+  echo "Skipped setup wizard (--no-init). Run '$PRIMARY_CMD init' when you're ready."
+  exit 0
+fi
+
+if [[ -t 0 && -t 1 && -r /dev/tty ]]; then
+  echo ""
+  echo "Starting setup wizard (pass --no-init to skip)..."
+  if ! "$DEST" init </dev/tty; then
+    echo ""
+    echo "Setup wizard did not complete. Run '$PRIMARY_CMD init' to retry."
+  fi
+else
+  echo ""
+  echo "No interactive terminal detected. Run '$PRIMARY_CMD init' to set up your vault."
 fi
