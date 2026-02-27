@@ -71,8 +71,13 @@ chmod +x "$DEST"
 
 add_to_path() {
   local rc_file="$1"
-  local line='export PATH="$HOME/.grind/bin:$PATH"'
-  if [[ -f "$rc_file" ]] && ! grep -qF '.grind/bin' "$rc_file" 2>/dev/null; then
+  local line="$2"
+
+  if [[ ! -f "$rc_file" ]]; then
+    touch "$rc_file"
+  fi
+
+  if ! grep -qF "$line" "$rc_file" 2>/dev/null; then
     echo "" >> "$rc_file"
     echo "# Added by Grind installer" >> "$rc_file"
     echo "$line" >> "$rc_file"
@@ -80,10 +85,27 @@ add_to_path() {
   fi
 }
 
+build_path_line() {
+  local dir="$GRIND_INSTALL_DIR"
+
+  if [[ "$dir" == "$HOME" ]]; then
+    dir='\$HOME'
+  elif [[ "$dir" == "$HOME/"* ]]; then
+    dir="\$HOME/${dir#$HOME/}"
+  fi
+
+  printf 'export PATH="%s:$PATH"' "$dir"
+}
+
+PATH_LINE="$(build_path_line)"
+
 if [[ ":$PATH:" != *":${GRIND_INSTALL_DIR}:"* ]]; then
-  add_to_path "$HOME/.zshrc"
-  add_to_path "$HOME/.bashrc"
-  add_to_path "$HOME/.profile"
+  if [[ -n "${ZDOTDIR:-}" && "$ZDOTDIR" != "$HOME" ]]; then
+    add_to_path "$ZDOTDIR/.zshrc" "$PATH_LINE"
+  fi
+  add_to_path "$HOME/.zshrc" "$PATH_LINE"
+  add_to_path "$HOME/.bashrc" "$PATH_LINE"
+  add_to_path "$HOME/.profile" "$PATH_LINE"
   export PATH="${GRIND_INSTALL_DIR}:$PATH"
 fi
 

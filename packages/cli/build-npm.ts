@@ -1,5 +1,7 @@
 import { cpSync, existsSync, readFileSync, writeFileSync } from "fs";
 
+const pkg = JSON.parse(readFileSync("./package.json", "utf8")) as { version: string };
+
 const result = await Bun.build({
   entrypoints: ["./src/index.ts"],
   outdir: "./dist",
@@ -10,6 +12,7 @@ const result = await Bun.build({
     "process.env.GRIND_GOOGLE_CLIENT_SECRET": JSON.stringify(
       process.env.GRIND_GOOGLE_CLIENT_SECRET ?? "",
     ),
+    GRINDXP_VERSION: JSON.stringify(pkg.version),
   },
 });
 

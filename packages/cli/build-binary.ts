@@ -1,4 +1,5 @@
 import { createRequire } from "module";
+import { readFileSync } from "node:fs";
 
 function getNativeTarget(): string {
   const target = process.env.TARGET;
@@ -19,6 +20,7 @@ function getNativeTarget(): string {
 
 const outfile = process.env.OUTFILE ?? "./dist/grind";
 const target = process.env.TARGET as Bun.BuildConfig["target"] | undefined;
+const pkg = JSON.parse(readFileSync("./package.json", "utf8")) as { version: string };
 
 const result = await Bun.build({
   entrypoints: ["./src/index.ts"],
@@ -28,6 +30,7 @@ const result = await Bun.build({
     "process.env.GRIND_GOOGLE_CLIENT_SECRET": JSON.stringify(
       process.env.GRIND_GOOGLE_CLIENT_SECRET ?? "",
     ),
+    GRINDXP_VERSION: JSON.stringify(pkg.version),
   },
   plugins: [
     {
