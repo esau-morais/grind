@@ -9,9 +9,13 @@ export default {
       return fetch(request);
     }
 
-    if (url.pathname.startsWith("/docs")) {
+    const isSubdomain = url.hostname === SITE_HOSTNAME;
+    if (isSubdomain || url.pathname.startsWith("/docs")) {
       const proxyUrl = new URL(request.url);
       proxyUrl.hostname = DOCS_HOSTNAME;
+      if (isSubdomain) {
+        proxyUrl.pathname = "/docs" + url.pathname;
+      }
 
       const proxyRequest = new Request(proxyUrl, request);
       proxyRequest.headers.set("Host", DOCS_HOSTNAME);
