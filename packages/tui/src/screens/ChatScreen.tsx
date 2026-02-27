@@ -52,6 +52,7 @@ function guessFiletype(diffStr: string): string | undefined {
 }
 
 const COLLAPSED_LINES = 8;
+const PROMPT_HISTORY_MAX = 100;
 
 export interface ImageAttachment {
   id: string;
@@ -446,8 +447,6 @@ function SuggestionPanel({
 type CommandMode = "idle" | "suggesting" | "picking";
 type EffectiveMode = CommandMode | "permission" | "sessions";
 
-const PROMPT_HISTORY_MAX = 100;
-
 export function ChatScreen(props: ChatScreenProps) {
   const {
     onSend,
@@ -498,12 +497,11 @@ export function ChatScreen(props: ChatScreenProps) {
   const [pasteBuffers, setPasteBuffers] = useState<{ label: string; content: string }[]>([]);
   const pasteCountRef = useRef(0);
   const [pastePreviewOpen, setPastePreviewOpen] = useState(false);
+  const [hasPromptText, setHasPromptText] = useState(false);
 
-  // Prompt history — in-memory navigation state (seeded from DB via prop)
-  // promptHistoryRef/historyDraftRef are truly transient; historyIndex state drives the status bar.
-  const promptHistoryRef = useRef<string[]>(props.initialPromptHistory ?? []);
+  const historyRef = useRef<string[]>(props.initialPromptHistory ?? []);
   const historyDraftRef = useRef("");
-  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [historyNavPos, setHistoryNavPos] = useState<{ i: number; n: number } | null>(null);
 
   const suggestions = useMemo(() => matchCommands(cmdBuffer), [cmdBuffer]);
   const ghostText = useMemo(() => getGhostCompletion(cmdBuffer), [cmdBuffer]);
@@ -564,20 +562,56 @@ export function ChatScreen(props: ChatScreenProps) {
     setPickerSelectedIndex(0);
   }, []);
 
+  const clearPromptAll = useCallback(() => {
+    textareaRef.current?.clear();
+    textareaRef.current?.extmarks?.clear();
+    for (const att of attachments) onRemoveAttachment(att.id);
+    setPasteBuffers([]);
+    setPastePreviewOpen(false);
+    setHasPromptText(false);
+    historyDraftRef.current = "";
+    setHistoryNavPos(null);
+  }, [attachments, onRemoveAttachment]);
+
+  function navigateHistory(direction: "up" | "down") {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const history = historyRef.current;
+
+    if (direction === "up") {
+      if (history.length === 0) return;
+      const curIdx = historyNavPos !== null ? historyNavPos.i - 1 : -1;
+      const nextIdx = curIdx === -1 ? history.length - 1 : Math.max(0, curIdx - 1);
+      if (nextIdx === curIdx) return;
+      if (curIdx === -1) historyDraftRef.current = textarea.plainText;
+      setHistoryNavPos({ i: nextIdx + 1, n: history.length });
+      textarea.setText(history[nextIdx]!);
+      textarea.cursorOffset = 0;
+      setHasPromptText(true);
+    } else {
+      if (historyNavPos === null) return;
+      const nextIdx = historyNavPos.i;
+      if (nextIdx >= history.length) {
+        setHistoryNavPos(null);
+        const draft = historyDraftRef.current;
+        textarea.setText(draft);
+        textarea.cursorOffset = draft.length;
+        setHasPromptText(draft.length > 0);
+      } else {
+        setHistoryNavPos({ i: nextIdx + 1, n: history.length });
+        textarea.setText(history[nextIdx]!);
+        textarea.cursorOffset = history[nextIdx]!.length;
+        setHasPromptText(true);
+      }
+    }
+  }
+
   const imageTypeIdRef = useRef<number | null>(null);
 
   const handleContentChange = useEffectEvent(() => {
     if (commandMode !== "idle") return;
     const value = textareaRef.current?.plainText ?? "";
-    // Exit history mode when user edits content that no longer matches the current history entry.
-    // This distinguishes programmatic insertions (value === expected) from user typing.
-    if (historyIndex !== -1) {
-      const expected = promptHistoryRef.current[historyIndex];
-      if (value !== expected) {
-        setHistoryIndex(-1);
-      }
-      return;
-    }
+    setHasPromptText(value.length > 0);
     if (value === "/") {
       textareaRef.current?.clear();
       setCommandMode("suggesting");
@@ -630,13 +664,13 @@ export function ChatScreen(props: ChatScreenProps) {
     }
     if (!text && !hasImages) return;
     if (text) {
-      const h = promptHistoryRef.current;
+      const h = historyRef.current;
       if (h[h.length - 1] !== text) {
-        promptHistoryRef.current = [...h, text].slice(-PROMPT_HISTORY_MAX);
+        historyRef.current = [...h, text].slice(-PROMPT_HISTORY_MAX);
       }
     }
-    setHistoryIndex(-1);
     historyDraftRef.current = "";
+    setHistoryNavPos(null);
     onSend(text);
     textareaRef.current?.extmarks?.clear();
     textareaRef.current?.clear();
@@ -644,6 +678,10 @@ export function ChatScreen(props: ChatScreenProps) {
 
   const handlePaste = useCallback(
     (event: PasteEvent) => {
+      if (historyNavPos !== null) {
+        historyDraftRef.current = "";
+        setHistoryNavPos(null);
+      }
       const normalized = event.text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
       const pasted = normalized.trim();
       if (!pasted) return;
@@ -703,6 +741,13 @@ export function ChatScreen(props: ChatScreenProps) {
   // useKeyboard wraps the handler in useEffectEvent internally — always reads latest state/props.
   useKeyboard((key) => {
     if (key.ctrl && key.name === "c") {
+      if (effectiveMode === "idle") {
+        const text = textareaRef.current?.plainText ?? "";
+        if (text || attachments.length > 0 || pasteBuffers.length > 0) {
+          clearPromptAll();
+          return;
+        }
+      }
       onExit();
       return;
     }
@@ -852,50 +897,6 @@ export function ChatScreen(props: ChatScreenProps) {
       return;
     }
 
-    if (mode === "idle" && key.name === "up") {
-      const plain = textareaRef.current?.plainText ?? "";
-      const cursor = textareaRef.current?.cursorOffset ?? 0;
-      const onFirstLine = !plain.slice(0, cursor).includes("\n");
-      const history = promptHistoryRef.current;
-      if (onFirstLine && history.length > 0) {
-        key.preventDefault();
-        const curIdx = historyIndex;
-        const nextIdx = curIdx === -1 ? history.length - 1 : Math.max(0, curIdx - 1);
-        if (nextIdx !== curIdx) {
-          if (curIdx === -1) historyDraftRef.current = plain;
-          const entry = history[nextIdx];
-          if (entry !== undefined) {
-            setHistoryIndex(nextIdx);
-            textareaRef.current?.clear();
-            textareaRef.current?.extmarks?.clear();
-            textareaRef.current?.insertText(entry);
-          }
-        }
-        return;
-      }
-    }
-
-    if (mode === "idle" && key.name === "down" && historyIndex !== -1) {
-      key.preventDefault();
-      const history = promptHistoryRef.current;
-      const nextIdx = historyIndex + 1;
-      if (nextIdx >= history.length) {
-        setHistoryIndex(-1);
-        textareaRef.current?.clear();
-        textareaRef.current?.extmarks?.clear();
-        if (historyDraftRef.current) textareaRef.current?.insertText(historyDraftRef.current);
-      } else {
-        const entry = history[nextIdx];
-        if (entry !== undefined) {
-          setHistoryIndex(nextIdx);
-          textareaRef.current?.clear();
-          textareaRef.current?.extmarks?.clear();
-          textareaRef.current?.insertText(entry);
-        }
-      }
-      return;
-    }
-
     if (
       mode === "idle" &&
       attachments.length > 0 &&
@@ -949,11 +950,51 @@ export function ChatScreen(props: ChatScreenProps) {
       return;
     }
 
+    if (mode === "idle" && historyNavPos !== null) {
+      const isChar =
+        !key.ctrl &&
+        !key.meta &&
+        key.sequence &&
+        key.sequence.length === 1 &&
+        key.sequence.charCodeAt(0) >= 32;
+      if (isChar || key.name === "backspace" || key.name === "delete") {
+        historyDraftRef.current = "";
+        setHistoryNavPos(null);
+      }
+    }
+
+    if (mode === "idle" && key.name === "up" && !key.ctrl && !key.meta) {
+      const offset = textareaRef.current?.cursorOffset ?? 0;
+      if (offset === 0 && historyRef.current.length > 0) {
+        key.preventDefault();
+        navigateHistory("up");
+        return;
+      }
+    }
+
+    if (
+      mode === "idle" &&
+      key.name === "down" &&
+      !key.ctrl &&
+      !key.meta &&
+      historyNavPos !== null
+    ) {
+      key.preventDefault();
+      navigateHistory("down");
+      return;
+    }
+
     if (key.name === "escape") {
       if (isStreaming) {
         onAbort();
       } else {
-        onExit();
+        // effectiveMode is "idle" here — other modes return early above
+        const text = textareaRef.current?.plainText ?? "";
+        if (text || attachments.length > 0 || pasteBuffers.length > 0) {
+          clearPromptAll();
+        } else {
+          onExit();
+        }
       }
     }
   });
@@ -1260,9 +1301,13 @@ export function ChatScreen(props: ChatScreenProps) {
               focused={textareaFocused}
               minHeight={1}
               maxHeight={6}
+              flexShrink={0}
               keyBindings={[
                 { name: "return", action: "submit" as const },
                 { name: "return", meta: true, action: "newline" as const },
+                { name: "return", ctrl: true, action: "newline" as const },
+                { name: "return", shift: true, action: "newline" as const },
+                { name: "j", ctrl: true, action: "newline" as const },
               ]}
             />
           </>
@@ -1345,10 +1390,22 @@ export function ChatScreen(props: ChatScreenProps) {
             </text>
           </>
         )}
-        {effectiveMode === "idle" && !isStreaming && (
+        {effectiveMode === "idle" && !isStreaming && historyNavPos !== null && (
+          <>
+            <text fg={colors.muted}>
+              {"\u2191\u2193"} history {historyNavPos.i}/{historyNavPos.n}
+            </text>
+            <text fg={colors.textDim}>{"\u00b7"}</text>
+            <text fg={colors.textDim}>{"\u2193"} newer</text>
+            <text fg={colors.textDim}>
+              [<span fg={colors.accent}>Esc</span>] cancel
+            </text>
+          </>
+        )}
+        {effectiveMode === "idle" && !isStreaming && historyNavPos === null && (
           <>
             <text fg={colors.muted}>{modelId}</text>
-            <text fg={colors.textDim}>·</text>
+            <text fg={colors.textDim}>{"\u00b7"}</text>
             <text fg={thinkingEnabled ? colors.xp : colors.textDim}>
               {thinkingEnabled ? thinkLevel : "off"}
             </text>
@@ -1373,24 +1430,23 @@ export function ChatScreen(props: ChatScreenProps) {
             )}
             {!zenMode && (
               <>
+                {historyRef.current.length > 0 && (
+                  <text fg={colors.textDim}>
+                    [<span fg={colors.accent}>{"\u2191"}</span>] history
+                  </text>
+                )}
                 <text fg={colors.textDim}>
                   [<span fg={colors.accent}>/</span>] cmds
                 </text>
-                {historyIndex !== -1 ? (
-                  <text fg={colors.accent}>
-                    history [{historyIndex + 1}/{promptHistoryRef.current.length}]{" "}
-                    <span fg={colors.textDim}>[↑↓] nav</span>
+                {hasPromptText || attachments.length > 0 || pasteBuffers.length > 0 ? (
+                  <text fg={colors.textDim}>
+                    [<span fg={colors.accent}>Esc</span>/<span fg={colors.accent}>^C</span>] clear
                   </text>
                 ) : (
-                  promptHistoryRef.current.length > 0 && (
-                    <text fg={colors.textDim}>
-                      [<span fg={colors.accent}>↑↓</span>] history
-                    </text>
-                  )
+                  <text fg={colors.textDim}>
+                    [<span fg={colors.accent}>Esc</span>] exit
+                  </text>
                 )}
-                <text fg={colors.textDim}>
-                  [<span fg={colors.accent}>Esc</span>] back
-                </text>
               </>
             )}
           </>
