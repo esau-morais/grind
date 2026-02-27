@@ -10,6 +10,47 @@ $ErrorActionPreference = "Stop"
 $Repo   = "esau-morais/grind"
 $InstallDir = if ($env:GRIND_INSTALL_DIR) { $env:GRIND_INSTALL_DIR } else { "$env:USERPROFILE\.grind\bin" }
 
+function Ensure-UserPathContains {
+  param([string]$Dir)
+
+  if (-not $Dir) { return }
+
+  $normalized = $Dir.Trim().TrimEnd("\\")
+  if (-not $normalized) { return }
+
+  $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+  $parts = @()
+  if ($userPath) {
+    $parts = $userPath.Split(";") | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+  }
+
+  $existsInUserPath = $parts | Where-Object {
+    $_.TrimEnd("\\").ToLowerInvariant() -eq $normalized.ToLowerInvariant()
+  }
+
+  if (-not $existsInUserPath) {
+    $newUserPath = if ($userPath -and $userPath.Trim().Length -gt 0) {
+      "$userPath;$normalized"
+    } else {
+      $normalized
+    }
+    [Environment]::SetEnvironmentVariable("Path", $newUserPath, "User")
+    Write-Host "Added to user PATH: $normalized"
+  }
+
+  $sessionParts = $env:Path.Split(";") | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+  $existsInSessionPath = $sessionParts | Where-Object {
+    $_.TrimEnd("\\").ToLowerInvariant() -eq $normalized.ToLowerInvariant()
+  }
+  if (-not $existsInSessionPath) {
+    $env:Path = if ($env:Path -and $env:Path.Trim().Length -gt 0) {
+      "$env:Path;$normalized"
+    } else {
+      $normalized
+    }
+  }
+}
+
 # ── WSL2 delegation ──────────────────────────────────────────────────────────
 # If WSL2 is available, install inside WSL for full feature support.
 
@@ -44,6 +85,17 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
 
 $pkg = if ($Version) { "grindxp@$Version" } else { "grindxp" }
 npm install -g $pkg
+
+try {
+  $npmPrefix = (npm prefix -g 2>$null).Trim()
+  if ($npmPrefix) {
+    Ensure-UserPathContains $npmPrefix
+  }
+} catch {
+  # ignore PATH persistence failures
+}
+
+Write-Host "If grindxp is not recognized, open a new terminal to refresh PATH."
 
 if (-not $NoInit) {
   grindxp init

@@ -2,6 +2,7 @@ import * as p from "@clack/prompts";
 import { isInitialized } from "@grindxp/core";
 
 import { showBanner } from "./brand";
+import { checkAndUpdate, VERSION } from "./update";
 import {
   companionContextCommand,
   companionMemoryAddCommand,
@@ -14,6 +15,7 @@ import {
 } from "./commands/companion";
 import { completeCommand } from "./commands/complete";
 import { dashboardCommand } from "./commands/dashboard";
+import { doctorCommand } from "./commands/doctor";
 import {
   gatewayDisableCommand,
   gatewayEnableCommand,
@@ -57,6 +59,11 @@ const rest = argv.slice(2);
 async function main(): Promise<void> {
   const hasHelp = argv.includes("--help") || argv.includes("-h");
 
+  if (argv.includes("--version") || argv.includes("-v")) {
+    p.intro(`grindxp v${VERSION}`);
+    return;
+  }
+
   if (
     command === "help" ||
     command === "--help" ||
@@ -66,6 +73,8 @@ async function main(): Promise<void> {
     showHelp();
     return;
   }
+
+  void checkAndUpdate().catch(() => {});
 
   if (hasHelp && command !== undefined) {
     showCommandHelp(command, sub);
@@ -92,6 +101,11 @@ async function main(): Promise<void> {
       dryRun: argv.includes("--dry-run"),
     };
     await uninstallCommand(uninstallOpts);
+    return;
+  }
+
+  if (command === "doctor") {
+    await doctorCommand(sub);
     return;
   }
 
@@ -363,6 +377,8 @@ function showHelp(): void {
       "grindxp chat --new              Start a new conversation",
       "grindxp chat -s <id>            Resume a specific session",
       "grindxp uninstall               Remove Grind data and services",
+      "grindxp doctor                  Diagnose install/path issues",
+      "grindxp doctor install          Diagnose installation conflicts",
     ].join("\n"),
     "Commands",
   );

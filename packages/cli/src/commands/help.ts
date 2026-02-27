@@ -244,6 +244,18 @@ export function showCommandHelp(command: string | undefined, sub: string): void 
       );
       break;
 
+    case "doctor":
+      note(
+        [
+          "Usage: grindxp doctor [install]",
+          "",
+          "Run installation diagnostics.",
+          "Checks multi-install conflicts and PATH persistence.",
+        ].join("\n"),
+        "doctor",
+      );
+      break;
+
     default:
       p.log.error(`Unknown command: ${command ?? "(none)"}`);
       p.log.info("Run grindxp --help to see all commands.");

@@ -81,6 +81,7 @@ const grindConfigSchema = z.object({
   gateway: gatewayConfigSchema.optional(),
   services: servicesConfigSchema.optional(),
   theme: z.string().optional(),
+  autoupdate: z.union([z.boolean(), z.literal("notify")]).optional(),
 });
 
 export type GrindConfig = z.infer<typeof grindConfigSchema>;
