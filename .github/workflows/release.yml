@@ -121,6 +121,20 @@ jobs:
           tar -czf "dist/${ARCHIVE_NAME}" -C dist/release-bundle .
           rm -rf dist/release-bundle
 
+      - name: Package binary bundle (Windows)
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          $binaryName = "grind-${{ matrix.os }}-${{ matrix.arch }}"
+          $archiveName = "$binaryName.zip"
+
+          Remove-Item -Path "dist/release-bundle" -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -Path "dist/release-bundle" -ItemType Directory -Force | Out-Null
+          Copy-Item -Path "dist/${binaryName}.exe" -Destination "dist/release-bundle/${binaryName}.exe"
+          Copy-Item -Path "packages/core/drizzle" -Destination "dist/release-bundle/drizzle" -Recurse
+          Compress-Archive -Path "dist/release-bundle/*" -DestinationPath "dist/${archiveName}" -Force
+          Remove-Item -Path "dist/release-bundle" -Recurse -Force
+
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
