@@ -140,4 +140,5 @@ jobs:
           gh release create "v${VERSION}" \
             --title "v${VERSION}" \
             --generate-notes \
+            --clobber \
             dist/grind-*
