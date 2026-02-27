@@ -2,6 +2,110 @@ footer {
   margin-top: 2rem;
 }
 
+#skip-to-main-link {
+  position: fixed;
+  top: -3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  padding: 0.5rem 1.25rem;
+  background-color: rgb(var(--primary));
+  color: #fff;
+  border-radius: 0 0 0.5rem 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition: top 0.15s ease-in-out;
+}
+
+#skip-to-main-link:focus {
+  top: 0;
+  outline: none;
+}
+
+#content-area:focus-visible {
+  outline: none;
+}
+
+html.dark #skip-to-main-link {
+  background-color: rgb(var(--primary-light));
+  color: #1a1a1a;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--primary));
+  outline-offset: 2px;
+}
+
+html.dark :focus-visible {
+  outline-color: rgb(var(--primary-light));
+}
+
+a[aria-label="Navigate to header"]:focus-visible,
+a[aria-label="Navigate to header"]:focus-visible > div {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+
+#navigation-items a:focus-visible {
+  outline-offset: -2px;
+}
+
+#pagination a:first-child:focus-visible {
+  outline-offset: -2px;
+}
+
+[role="tab"]:focus-visible {
+  outline-offset: -2px;
+}
+
+[data-component-part="accordion-button"]:focus-visible {
+  outline: none;
+}
+
+.accordion:has([data-component-part="accordion-button"]:focus-visible) {
+  outline: 2px solid rgb(var(--primary));
+  outline-offset: -2px;
+}
+
+.accordion:first-child:has([data-component-part="accordion-button"]:focus-visible) {
+  outline: none;
+  box-shadow: inset 0 -2px 0 rgb(var(--primary));
+}
+
+.accordion:last-child:has([data-component-part="accordion-button"]:focus-visible) {
+  outline: none;
+  box-shadow: inset 0 2px 0 rgb(var(--primary));
+}
+
+html.dark .accordion:has([data-component-part="accordion-button"]:focus-visible) {
+  outline-color: rgb(var(--primary-light));
+}
+
+html.dark .accordion:first-child:has([data-component-part="accordion-button"]:focus-visible) {
+  box-shadow: inset 0 -2px 0 rgb(var(--primary-light));
+}
+
+html.dark .accordion:last-child:has([data-component-part="accordion-button"]:focus-visible) {
+  box-shadow: inset 0 2px 0 rgb(var(--primary-light));
+}
+
+[data-component-part="code-block-root"]:focus-visible {
+  outline: none;
+}
+
+.code-block:has([data-component-part="code-block-root"]:focus-visible) {
+  outline: 2px solid rgb(var(--primary));
+  outline-offset: -1px;
+}
+
+html.dark .code-block:has([data-component-part="code-block-root"]:focus-visible) {
+  outline-color: rgb(var(--primary-light));
+}
+
 .nav-tabs {
   position: relative;
 }

@@ -52,6 +52,19 @@ At trust ≥ 3, the agent can invoke:
 
 These tools are intentionally powerful. The approval prompt at level 3 exists as a checkpoint. Read the tool call before approving.
 
+## Self-Hosting Hardening
+
+When running Grind on a VPS or server, follow these practices in addition to the sections below:
+
+- **Keep services loopback-only.** Both the web app (`:3000`) and gateway (`:5174`) default to `127.0.0.1`. Only expose them through a reverse proxy.
+- **The web app has no built-in auth.** Use an SSH tunnel, Tailscale, Cloudflare Access, or HTTP basic auth before exposing it publicly. Never put it directly on a public port.
+- **Only expose `/hooks/*` gateway endpoints publicly** — and only if you use Telegram, Discord, or WhatsApp integrations. Everything else should stay behind the proxy or be blocked.
+- **Set all webhook verification secrets** (`GRIND_GATEWAY_TOKEN`, `GRIND_TELEGRAM_WEBHOOK_SECRET`, `GRIND_DISCORD_PUBLIC_KEY`, `GRIND_WHATSAPP_APP_SECRET`). Unverified endpoints accept any POST.
+- **Enable `loginctl enable-linger`** on headless Linux servers so user services restart on boot.
+- **Firewall:** allow only TCP 22, 80, 443 inbound. The service ports (3000, 5174) must not be publicly reachable.
+
+See [Self-Hosting](/install/self-hosting) for the full guide including systemd setup, reverse proxy configs, and platform-specific examples.
+
 ## Gateway Exposure
 
 By default, the gateway binds to `127.0.0.1:5174` (localhost only). It is **not** accessible from the network.

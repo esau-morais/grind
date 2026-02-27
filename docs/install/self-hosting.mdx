@@ -1,0 +1,847 @@
+---
+title: "Self-Hosting (VPS / Server)"
+description: "Run Grind on any VPS or server. Install, initialize, keep services running with systemd, expose securely with a reverse proxy, and receive webhooks."
+summary: "Complete self-hosting guide: VPS requirements, install, systemd service setup, reverse proxy configuration (Caddy, Nginx, Traefik), firewall, Docker, and platform-specific tips for Hetzner, DigitalOcean, Oracle Cloud, and Fly.io."
+read_when:
+  - "User wants to run Grind on a VPS or server"
+  - "User wants to receive webhooks (Telegram, Discord, WhatsApp) on a server"
+  - "User wants to keep Grind running 24/7"
+  - "User wants to access the web app remotely"
+---
+
+Run Grind on any Linux VPS or server for 24/7 availability and always-on webhook delivery. Both the web app and gateway run as local processes — a reverse proxy handles TLS and external traffic.
+
+<Info>
+  **Private by default.** The web app has no built-in authentication layer. Keep it private via SSH
+  tunnel or Tailscale unless you add an external auth gate (Cloudflare Access, HTTP basic auth,
+  VPN). Only the gateway's `/hooks/*` endpoints need to be publicly reachable — and only if you use
+  Telegram, Discord, or WhatsApp integrations.
+</Info>
+
+## VPS requirements
+
+|          | Minimum               | Recommended                  |
+| -------- | --------------------- | ---------------------------- |
+| **CPU**  | 1 vCPU                | 1–2 vCPU                     |
+| **RAM**  | 512 MB                | 1 GB+                        |
+| **Disk** | 1 GB                  | 5 GB+                        |
+| **OS**   | Linux x86_64 or arm64 | Ubuntu 22.04 LTS / 24.04 LTS |
+
+Any modern Linux distribution works. Ubuntu LTS is the most tested path.
+
+## Architecture
+
+```
+         Internet (HTTPS 443)
+                  │
+   ┌──────────────┴─────────────────────┐
+   │  Reverse proxy (Caddy / Nginx / …) │
+   │  hooks.example.com /hooks/* → :5174│  ← gateway (webhooks, public)
+   │  app.example.com         → :3000   │  ← web app (private + auth gate)
+   └────────────────────────────────────┘
+              │                   │
+      127.0.0.1:5174       127.0.0.1:3000
+         Gateway               Web app
+              └────────┬────────┘
+                ~/.grind/vault.db
+              (AES-encrypted at rest)
+```
+
+Both services bind to `127.0.0.1` by default. Only the reverse proxy is publicly reachable.
+
+---
+
+## Quickstart
+
+<Steps>
+  <Step title="Install Bun + Grind">
+    <CodeGroup>
+      ```bash Debian / Ubuntu
+      sudo apt install -y unzip
+      curl -fsSL https://bun.com/install | bash
+      source ~/.bashrc
+      bun install -g grindxp
+      ```
+
+      ```bash Fedora / RHEL / CentOS
+      sudo dnf install -y unzip
+      curl -fsSL https://bun.com/install | bash
+      source ~/.bashrc
+      bun install -g grindxp
+      ```
+
+      ```bash Arch Linux
+      sudo pacman -S --needed unzip
+      curl -fsSL https://bun.com/install | bash
+      source ~/.bashrc
+      bun install -g grindxp
+      ```
+    </CodeGroup>
+
+  </Step>
+  <Step title="Initialize your vault">
+    ```bash
+    grindxp init
+    ```
+    Creates `~/.grind/`, generates an encryption key, and sets up your profile. Back up the key immediately — see [Step 2](#step-2-initialize) below.
+  </Step>
+  <Step title="Start services">
+    ```bash
+    # Web app (foreground, headless)
+    grindxp web serve --no-open
+
+    # Gateway (second terminal)
+    grindxp gateway serve
+    ```
+
+  </Step>
+  <Step title="Verify locally">
+    ```bash
+    curl http://127.0.0.1:3000/        # web app
+    curl http://127.0.0.1:5174/health  # gateway → {"status":"ok"}
+    ```
+  </Step>
+</Steps>
+
+For a production setup with autostart and TLS, follow the full steps below.
+
+---
+
+## Step 1: Install Grind
+
+See [Installation](/install) for all options. On a Linux server:
+
+<CodeGroup>
+  ```bash Installer script
+  curl -fsSL https://grindxp.app/install.sh | bash -s -- --no-init
+  ```
+
+```bash bun / npm
+bun install -g grindxp
+# or
+npm install -g grindxp
+```
+
+</CodeGroup>
+
+Verify:
+
+```bash
+grindxp --version
+```
+
+## Step 2: Initialize
+
+```bash
+grindxp init
+```
+
+The setup wizard runs interactively. On a headless server, run it in any terminal (SSH session is fine).
+
+**Back up your encryption key immediately.** Without it the vault is unrecoverable:
+
+```bash
+python3 -c "import json; print(json.load(open('$HOME/.grind/config.json'))['encryptionKey'])"
+```
+
+Store the printed key in a password manager or secrets store.
+
+## Step 3: Configure environment
+
+Set production values in an env file. Grind reads `process.env`, so any mechanism works (systemd `EnvironmentFile`, Docker `env_file`, shell export).
+
+`/etc/grind.env` (or `~/.grind/.env`):
+
+```bash
+GRIND_GATEWAY_HOST=127.0.0.1
+GRIND_GATEWAY_PORT=5174
+GRIND_GATEWAY_TOKEN=<strong-random-secret>
+
+# AI provider — pick one
+ANTHROPIC_API_KEY=sk-...
+# OPENAI_API_KEY=sk-...
+# OLLAMA_BASE_URL=http://localhost:11434/v1
+```
+
+Generate a secure gateway token:
+
+```bash
+openssl rand -hex 32
+```
+
+See [Environment Reference](/reference/env) for the full variable list.
+
+## Step 4: Keep services running (systemd)
+
+### Enable user lingering
+
+Grind's `gateway start` installs a **systemd user unit** automatically. On a headless VPS, enable linger so user services survive logout and start on boot:
+
+```bash
+loginctl enable-linger $USER
+```
+
+Then start the gateway (autostart unit is installed automatically):
+
+```bash
+grindxp gateway start
+```
+
+Verify:
+
+```bash
+grindxp gateway status
+systemctl --user status grindxp-gateway
+```
+
+### Web app unit
+
+The web app has no built-in autostart. Create a user service:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/grindxp-web.service << 'EOF'
+[Unit]
+Description=Grind Web App
+After=network.target
+
+[Service]
+ExecStart=grindxp web serve --no-open
+Restart=always
+RestartSec=5
+EnvironmentFile=/etc/grind.env
+
+[Install]
+WantedBy=default.target
+EOF
+
+systemctl --user daemon-reload
+systemctl --user enable --now grindxp-web.service
+```
+
+Check:
+
+```bash
+systemctl --user status grindxp-web.service
+journalctl --user -u grindxp-web.service -f
+```
+
+### Alternative: system-level units
+
+If you prefer system-level services (no linger required):
+
+```bash
+# Web app
+sudo tee /etc/systemd/system/grindxp-web.service > /dev/null << EOF
+[Unit]
+Description=Grind Web App
+After=network.target
+
+[Service]
+User=$USER
+ExecStart=$(which grindxp) web serve --no-open
+Restart=always
+RestartSec=5
+EnvironmentFile=/etc/grind.env
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Gateway
+sudo tee /etc/systemd/system/grindxp-gateway.service > /dev/null << EOF
+[Unit]
+Description=Grind Gateway
+After=network.target
+
+[Service]
+User=$USER
+ExecStart=$(which grindxp) gateway serve
+Restart=always
+RestartSec=5
+EnvironmentFile=/etc/grind.env
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now grindxp-web.service grindxp-gateway.service
+```
+
+<Note>
+  If you use system-level units, run `grindxp gateway disable` first to remove the user-level unit
+  that `gateway start` installed — otherwise both will compete to run.
+</Note>
+
+### Alternative: PM2
+
+```bash
+npm install -g pm2
+pm2 start "grindxp web serve --no-open" --name grindxp-web
+pm2 start "grindxp gateway serve" --name grindxp-gateway
+pm2 save
+pm2 startup   # follow the printed instructions
+```
+
+---
+
+## Step 5: Reverse proxy + TLS
+
+The reverse proxy terminates TLS and routes traffic to local services.
+
+**Recommended routing:**
+
+- `hooks.example.com/hooks/*` → `http://127.0.0.1:5174` — webhook endpoints (public, signature-verified by each integration)
+- `app.example.com` → `http://127.0.0.1:3000` — web app (**add an auth gate before exposing publicly**)
+
+<Warning>
+  The web app has **no built-in authentication**. Do not expose it on a public hostname without an
+  auth gate. Use Cloudflare Access, HTTP basic auth, or a VPN/Tailscale tunnel for personal access
+  instead.
+</Warning>
+
+<Tabs>
+  <Tab title="Caddy">
+    Caddy handles TLS automatically via Let's Encrypt — no `certbot` needed.
+
+    <CodeGroup>
+      ```bash Debian / Ubuntu
+      sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+      curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+      sudo chmod o+r /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+      curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+      sudo chmod o+r /etc/apt/sources.list.d/caddy-stable.list
+      sudo apt update && sudo apt install caddy
+      ```
+
+      ```bash Fedora / RHEL
+      sudo dnf install -y 'dnf-command(copr)'
+      sudo dnf copr enable @caddy/caddy
+      sudo dnf install -y caddy
+      ```
+
+      ```bash Arch Linux
+      sudo pacman -S caddy
+      ```
+    </CodeGroup>
+
+    For other distros see the [official Caddy install docs](https://caddyserver.com/docs/install).
+
+    `/etc/caddy/Caddyfile`:
+
+    ```caddyfile
+    # Webhook endpoints only (public, HTTPS auto-managed)
+    hooks.example.com {
+      reverse_proxy /hooks/* 127.0.0.1:5174
+      respond "Not found" 404
+    }
+
+    # Web app — private by default
+    # Add Cloudflare Access, basicauth {}, or a VPN before making this public
+    app.example.com {
+      # basicauth {
+      #   alice <bcrypt-hash>   # htpasswd -nbB alice mypassword
+      # }
+      reverse_proxy 127.0.0.1:3000
+    }
+    ```
+
+    ```bash
+    sudo systemctl enable --now caddy
+    sudo caddy validate --config /etc/caddy/Caddyfile
+    sudo systemctl reload caddy
+    ```
+
+  </Tab>
+  <Tab title="Nginx">
+    <CodeGroup>
+      ```bash Debian / Ubuntu
+      sudo apt install -y nginx snapd
+      sudo snap install --classic certbot
+      sudo ln -s /snap/bin/certbot /usr/bin/certbot
+      ```
+
+      ```bash Fedora / RHEL
+      sudo dnf install -y nginx snapd
+      sudo systemctl enable --now snapd
+      sudo snap install --classic certbot
+      sudo ln -s /snap/bin/certbot /usr/bin/certbot
+      ```
+
+      ```bash Arch Linux
+      sudo pacman -S nginx certbot certbot-nginx
+      ```
+    </CodeGroup>
+
+    <Note>
+      Certbot uses an HTTP-01 ACME challenge. Port 80 must be open in your firewall before running
+      `certbot` — it temporarily binds to port 80 to prove domain ownership.
+    </Note>
+
+    `/etc/nginx/sites-available/grind`:
+
+    ```nginx
+    # Webhook endpoints only (public)
+    server {
+      listen 80;
+      server_name hooks.example.com;
+
+      location /hooks/ {
+        proxy_pass         http://127.0.0.1:5174;
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+      }
+
+      location / {
+        return 404;
+      }
+    }
+
+    # Web app — private by default (add auth before exposing publicly)
+    server {
+      listen 80;
+      server_name app.example.com;
+
+      # auth_basic "Grind";
+      # auth_basic_user_file /etc/nginx/.htpasswd;
+
+      location / {
+        proxy_pass          http://127.0.0.1:3000;
+        proxy_set_header    Host $host;
+        proxy_set_header    X-Real-IP $remote_addr;
+        proxy_set_header    X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header    X-Forwarded-Proto $scheme;
+        proxy_http_version  1.1;
+        proxy_set_header    Upgrade $http_upgrade;
+        proxy_set_header    Connection "upgrade";
+      }
+    }
+    ```
+
+    Enable and get TLS:
+
+    ```bash
+    sudo ln -s /etc/nginx/sites-available/grind /etc/nginx/sites-enabled/
+    sudo nginx -t
+    sudo systemctl reload nginx
+    sudo certbot --nginx -d hooks.example.com -d app.example.com
+    ```
+
+  </Tab>
+  <Tab title="Traefik">
+    `docker-compose.yml` with Traefik labels (works alongside the [Docker setup](#docker)):
+
+    ```yaml
+    services:
+      traefik:
+        image: traefik:v3
+        command:
+          - --entrypoints.web.address=:80
+          - --entrypoints.websecure.address=:443
+          - --certificatesresolvers.le.acme.tlschallenge=true
+          - --certificatesresolvers.le.acme.email=you@example.com
+          - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+          - --providers.docker=true
+          - --providers.docker.exposedbydefault=false
+        ports:
+          - "80:80"
+          - "443:443"
+        volumes:
+          - /var/run/docker.sock:/var/run/docker.sock
+          - ./letsencrypt:/letsencrypt
+
+      grindxp-web:
+        # see Docker section for full image definition
+        labels:
+          - traefik.enable=true
+          - traefik.http.routers.grind-web.rule=Host(`app.example.com`)
+          - traefik.http.routers.grind-web.tls.certresolver=le
+          - traefik.http.services.grind-web.loadbalancer.server.port=3000
+
+      grindxp-gateway:
+        labels:
+          - traefik.enable=true
+          - "traefik.http.routers.grind-hooks.rule=Host(`hooks.example.com`) && PathPrefix(`/hooks`)"
+          - traefik.http.routers.grind-hooks.tls.certresolver=le
+          - traefik.http.services.grind-hooks.loadbalancer.server.port=5174
+    ```
+
+  </Tab>
+  <Tab title="SSH Tunnel (personal access)">
+    For personal access with no reverse proxy needed:
+
+    ```bash
+    # From your local machine — forwards VPS port 3000 to your localhost
+    ssh -N -L 3000:127.0.0.1:3000 user@your-vps-ip
+    ```
+
+    Open `http://localhost:3000` in your browser. No TLS certificates or DNS records needed.
+
+    Background the tunnel:
+
+    ```bash
+    ssh -fN -L 3000:127.0.0.1:3000 user@your-vps-ip
+    ```
+
+    **Tailscale alternative:** install Tailscale on both machines, then access the VPS by its Tailscale IP directly — no port forwarding, no certificates, no exposed ports.
+
+  </Tab>
+</Tabs>
+
+---
+
+## Step 6: Firewall
+
+Allow only SSH and the reverse proxy. Everything else stays closed.
+
+<Tabs>
+  <Tab title="UFW (Debian / Ubuntu)">
+    ```bash
+    # See wiki.ubuntu.com/BasicSecurity/Firewall
+    sudo ufw default deny incoming
+    sudo ufw default allow outgoing
+    sudo ufw allow ssh
+    sudo ufw allow 80/tcp
+    sudo ufw allow 443/tcp
+    sudo ufw enable
+    sudo ufw status
+    ```
+  </Tab>
+  <Tab title="firewalld (Fedora / RHEL)">
+    ```bash
+    sudo systemctl enable --now firewalld
+    sudo firewall-cmd --permanent --add-service=ssh
+    sudo firewall-cmd --permanent --add-service=http
+    sudo firewall-cmd --permanent --add-service=https
+    sudo firewall-cmd --reload
+    sudo firewall-cmd --list-all
+    ```
+  </Tab>
+  <Tab title="nftables (Arch / generic)">
+    ```bash
+    # /etc/nftables.conf
+    sudo tee /etc/nftables.conf > /dev/null << 'EOF'
+    table inet filter {
+      chain input {
+        type filter hook input priority 0; policy drop;
+        ct state established,related accept
+        iif lo accept
+        tcp dport { 22, 80, 443 } accept
+      }
+      chain forward { type filter hook forward priority 0; policy drop; }
+      chain output  { type filter hook output priority 0; policy accept; }
+    }
+    EOF
+    sudo systemctl enable --now nftables
+    ```
+  </Tab>
+  <Tab title="Provider firewall">
+    Many VPS providers offer a managed firewall that sits outside the VM (Hetzner Cloud Firewall, DigitalOcean Firewall, AWS Security Groups, OCI Security Lists). Configure **either** the provider firewall **or** a host firewall — not both, to avoid confusion.
+
+    Allow inbound TCP 22, 80, and 443. Block everything else. The OS itself needs no additional firewall when the provider layer is in place.
+
+  </Tab>
+</Tabs>
+
+The web app (`:3000`) and gateway (`:5174`) are **not** opened — only the reverse proxy on the same host can reach them via localhost.
+
+---
+
+## Step 7: Verify
+
+```bash
+# Are services running?
+grindxp gateway status
+grindxp web status
+
+# Health checks (local)
+curl http://127.0.0.1:5174/health   # → {"status":"ok"}
+curl http://127.0.0.1:3000/         # → web app HTML
+
+# Health check via reverse proxy (after DNS propagates)
+curl https://hooks.example.com/health
+
+# Service logs
+journalctl --user -u grindxp-gateway -f
+journalctl --user -u grindxp-web -f
+```
+
+---
+
+## Webhooks
+
+If you use Telegram, Discord, or WhatsApp integrations, the gateway needs a public HTTPS URL. The reverse proxy above handles TLS termination.
+
+Register these webhook URLs with each provider:
+
+| Integration | Webhook URL                                |
+| ----------- | ------------------------------------------ |
+| Telegram    | `https://hooks.example.com/hooks/telegram` |
+| Discord     | `https://hooks.example.com/hooks/discord`  |
+| WhatsApp    | `https://hooks.example.com/hooks/whatsapp` |
+| Generic     | `https://hooks.example.com/hooks/inbound`  |
+
+Run `grindxp integrations` to connect credentials. Set the corresponding verification secrets in your env file — requests without valid signatures are rejected:
+
+```bash
+GRIND_TELEGRAM_WEBHOOK_SECRET=...   # verifies Telegram deliveries
+GRIND_DISCORD_PUBLIC_KEY=...        # verifies Discord Ed25519 signatures
+GRIND_WHATSAPP_APP_SECRET=...       # verifies WhatsApp HMAC-SHA256
+GRIND_GATEWAY_TOKEN=...             # protects /hooks/inbound
+```
+
+See [Environment Reference](/reference/env) and [Integrations](/cli/integrations) for details.
+
+---
+
+## Docker
+
+Initialize Grind on your local machine first (`grindxp init`), then copy `~/.grind/` to the server before running containers.
+
+`docker-compose.yml`:
+
+```yaml
+services:
+  grindxp-web:
+    image: oven/bun:1
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "bun install -g grindxp 2>/dev/null; grindxp web serve --no-open"
+    environment:
+      - PORT=3000
+    env_file:
+      - .env
+    volumes:
+      - grind-data:/root/.grind
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  grindxp-gateway:
+    image: oven/bun:1
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "bun install -g grindxp 2>/dev/null; grindxp gateway serve"
+    env_file:
+      - .env
+    volumes:
+      - grind-data:/root/.grind
+    ports:
+      - "127.0.0.1:5174:5174"
+
+volumes:
+  grind-data:
+    driver: local
+```
+
+`.env`:
+
+```bash
+GRIND_GATEWAY_HOST=0.0.0.0
+GRIND_GATEWAY_PORT=5174
+GRIND_GATEWAY_TOKEN=<strong-random-secret>
+ANTHROPIC_API_KEY=...
+```
+
+Copy your initialized vault into the named volume:
+
+```bash
+docker run --rm \
+  -v grind_grind-data:/root/.grind \
+  -v "$HOME/.grind":/src \
+  alpine sh -c "cp -a /src/. /root/.grind/"
+```
+
+Start:
+
+```bash
+docker compose up -d
+```
+
+<Tip>
+  For production, build a custom image with `grindxp` pre-installed so startup is fast and
+  reproducible. Install it in the `Dockerfile` with `RUN bun install -g grindxp` rather than at
+  container startup.
+</Tip>
+
+---
+
+## Platform examples
+
+<AccordionGroup>
+  <Accordion title="Hetzner" icon="server">
+    The [CX22](https://www.hetzner.com/cloud/) (2 vCPU, 4 GB RAM, ~€4/month) is the recommended starting point. CX11 (2 GB) works for personal use.
+
+    1. Open the [Hetzner Cloud Console](https://console.hetzner.cloud/) and create a server. Choose any supported Linux distro (Ubuntu 24.04 recommended) and add your SSH key during provisioning.
+    2. SSH in as root and create a non-root user:
+       ```bash
+       adduser grind
+       usermod -aG sudo grind
+       su - grind
+       ```
+    3. Follow the [Quickstart](#quickstart) then the full steps above.
+    4. Point DNS A records at the VPS IP:
+       - `hooks.example.com → <vps-ip>` (public, for webhooks)
+       - `app.example.com → <vps-ip>` (optional — keep private unless you add auth)
+    5. Use the [Caddy config](#step-5-reverse-proxy--tls) for automatic TLS with zero extra configuration.
+    6. In the Cloud Console, add a [Cloud Firewall](https://docs.hetzner.com/cloud/firewalls/overview/) that allows TCP 22, 80, 443 inbound — all other ports blocked.
+
+  </Accordion>
+  <Accordion title="DigitalOcean" icon="cloud">
+    A [Basic Droplet](https://cloud.digitalocean.com/droplets/new) ($6/month, 1 vCPU, 1 GB RAM) covers personal Grind usage.
+
+    1. Create a Droplet (Ubuntu 24.04 recommended; any supported Linux distro works). In [Networking → Firewalls](https://docs.digitalocean.com/products/networking/firewalls/), allow TCP 22, 80, 443 inbound.
+    2. SSH in and follow the [Quickstart](#quickstart).
+    3. Set DNS A records in [Networking → Domains](https://docs.digitalocean.com/products/networking/dns/).
+    4. Use [Caddy](#step-5-reverse-proxy--tls) or [Nginx](#step-5-reverse-proxy--tls) — both work well.
+
+    <Note>
+      DigitalOcean's managed firewall and a host-level firewall (UFW, firewalld) are independent
+      layers. Configure one or the other — not both — to avoid hard-to-debug conflicts. The managed
+      firewall is easier to audit from the cloud console.
+    </Note>
+
+  </Accordion>
+  <Accordion title="Oracle Cloud (Always Free)" icon="cloud">
+    The [Oracle Cloud Free Tier](https://www.oracle.com/cloud/free/) includes Ampere A1 ARM compute (up to 4 OCPUs + 24 GB RAM total) and 200 GB block storage — permanently free, no expiry.
+
+    1. Sign up and [create a Compute instance](https://docs.oracle.com/en-us/iaas/Content/Compute/Tasks/launchinginstance.htm). Choose Ubuntu 22.04 or later on Ampere A1 (ARM / aarch64). Grind and Bun both have full arm64 support.
+    2. Open ports 80 and 443 in the [OCI Security List](https://docs.oracle.com/en-us/iaas/Content/Network/Concepts/securitylists.htm) (Networking → Virtual Cloud Networks → your VCN → Security Lists). **The OS firewall alone is not sufficient on OCI** — the Security List sits at the hypervisor level and must also allow the ports.
+    3. Follow the [Quickstart](#quickstart).
+    4. Use [Caddy](#step-5-reverse-proxy--tls) — it's the easiest path on ARM.
+
+  </Accordion>
+  <Accordion title="Fly.io" icon="globe">
+    Fly.io's `shared-cpu-1x` with 512 MB RAM works for Grind. See the [fly.toml reference](https://fly.io/docs/reference/configuration/) for all config options.
+
+    `fly.toml`:
+    ```toml
+    app = "grind-yourusername"
+    primary_region = "iad"
+
+    [http_service]
+      internal_port = 5174
+      force_https = true
+      auto_stop_machines = true
+      auto_start_machines = true
+
+      [[http_service.checks]]
+        interval = "15s"
+        path = "/health"
+        timeout = "2s"
+    ```
+
+    Create a [persistent volume](https://fly.io/docs/volumes/) for `~/.grind/`:
+    ```bash
+    fly volumes create grind_data --size 2
+    fly secrets set GRIND_GATEWAY_TOKEN=$(openssl rand -hex 32)
+    fly deploy
+    ```
+
+    Fly handles TLS automatically. The web app is not deployed here by default — expose it separately or access via SSH tunnel with `fly ssh console`.
+
+  </Accordion>
+  <Accordion title="Any VPS (generic)" icon="terminal">
+    The guide above works on any Linux VPS. Key points:
+
+    - **OS:** Any modern Linux distro with systemd (Ubuntu 20.04+, Debian 11+, Fedora 38+, RHEL 9+, Arch).
+    - **Bun:** `curl -fsSL https://bun.com/install | bash` — see [Bun install docs](https://bun.com/docs/installation) for other methods.
+    - **Grind:** `bun install -g grindxp`
+    - **Autostart:** `loginctl enable-linger $USER` then `grindxp gateway start`, plus a user systemd unit for the web app.
+    - **Firewall:** use your provider's managed firewall panel if one exists — don't run both it and a host-level firewall.
+    - **TLS:** Caddy is the simplest option on any provider — it auto-provisions Let's Encrypt certificates.
+
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Backup
+
+Back up these two files regularly. Without `config.json` the vault is permanently unrecoverable:
+
+| File                   | Contains                               |
+| ---------------------- | -------------------------------------- |
+| `~/.grind/config.json` | Encryption key + all settings          |
+| `~/.grind/vault.db`    | Quest data, XP, streaks, conversations |
+
+Simple daily cron (adjust paths for your backup target):
+
+```bash
+# crontab -e
+0 3 * * * rsync -az ~/.grind/ backup-user@backup-host:/backups/grind/
+```
+
+Or with rclone to S3-compatible storage:
+
+```bash
+rclone copy ~/.grind/ remote:my-bucket/grind/ --exclude "*.log"
+```
+
+See [Security](/reference/security#vault-encryption) for the full key management guide.
+
+---
+
+## Troubleshooting
+
+### First 60 seconds if something is broken
+
+```bash
+grindxp gateway status             # is the gateway running and healthy?
+grindxp web status                 # is the web app running?
+curl http://127.0.0.1:5174/health  # gateway health probe
+curl http://127.0.0.1:3000/        # web app reachable?
+journalctl --user -u grindxp-gateway -n 50
+journalctl --user -u grindxp-web -n 50
+```
+
+### `systemctl --user` fails: "Failed to connect to bus"
+
+On a headless VPS without a login session, the D-Bus session bus is unavailable. Fix:
+
+```bash
+loginctl enable-linger $USER
+
+# Reconnect (new SSH session or):
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+systemctl --user daemon-reload
+```
+
+### Gateway port already in use
+
+```bash
+lsof -i :5174         # find what's using the port
+grindxp gateway stop  # stop any existing managed process
+
+# Or run on a different port:
+GRIND_GATEWAY_PORT=5175 grindxp gateway serve
+```
+
+### Reverse proxy returns 502
+
+The service is not running or is bound to the wrong address:
+
+```bash
+ss -tlnp | grep -E '3000|5174'
+# Should show 127.0.0.1:3000 and 127.0.0.1:5174
+```
+
+Both services must be bound to `127.0.0.1` (or `0.0.0.0`) and running before the proxy can reach them.
+
+### Webhook 401 / signature errors
+
+The verification secret doesn't match what was registered with the provider. Re-run `grindxp integrations` to update credentials, and ensure the matching env var is set:
+
+```bash
+GRIND_TELEGRAM_WEBHOOK_SECRET=...
+GRIND_DISCORD_PUBLIC_KEY=...
+GRIND_WHATSAPP_APP_SECRET=...
+```
+
+Restart the gateway after changing env vars.
+
+### Encryption key missing after reinstall
+
+The key is in `~/.grind/config.json`. If you deleted it without backing it up, the vault is unrecoverable. This is why [backing up config.json](#backup) before anything else is critical.
