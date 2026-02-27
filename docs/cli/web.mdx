@@ -1,0 +1,76 @@
+---
+title: "grindxp web"
+description: "Start and manage the Grind web dashboard."
+summary: "Web app subcommands: start (background daemon), stop, status, and serve (foreground). The web app runs on port 3000 by default and reads from the same vault as the CLI."
+read_when:
+  - "User wants to open the web dashboard"
+  - "User wants to run the web app in the background"
+  - "User wants to check if the web app is running"
+  - "User is setting up Grind on a headless server"
+---
+
+```bash
+grindxp web [subcommand]
+```
+
+The web app is a browser-based view of your vault — dashboard, AI chat, quests, skills, and analytics. It reads from the same vault as the CLI and TUI, so all data stays in sync automatically.
+
+## Subcommands
+
+### `web start`
+
+```bash
+grindxp web start
+```
+
+Starts the web app as a background daemon on `http://127.0.0.1:3000` and opens it in your default browser. If the app is already running, it reuses the existing process and opens the browser.
+
+### `web stop`
+
+```bash
+grindxp web stop
+```
+
+Stops the running background daemon (SIGTERM → SIGKILL if needed).
+
+### `web status`
+
+```bash
+grindxp web status
+```
+
+Shows the PID, start time, URL, and whether the app is currently reachable.
+
+### `web serve`
+
+```bash
+grindxp web serve [--no-open]
+```
+
+Runs the web app in the **foreground**. Pass `--no-open` to suppress the browser launch — the right flag for headless servers and process managers:
+
+```bash
+grindxp web serve --no-open
+```
+
+Press `Ctrl+C` to stop. This is the command to use inside a systemd unit or PM2 for production deployments.
+
+## Configuration
+
+The web app reads vault path and encryption key from `~/.grind/config.json`. No additional configuration is needed for basic use.
+
+| Variable | Default | Description                 |
+| -------- | ------- | --------------------------- |
+| `PORT`   | `3000`  | Port the web app listens on |
+
+<Warning>
+  The web app binds to `127.0.0.1` (localhost only) and has **no built-in authentication**. Do not
+  expose it on a public interface without an auth gate. Use an SSH tunnel, Tailscale, or a reverse
+  proxy with Cloudflare Access / HTTP basic auth for remote access.
+</Warning>
+
+## Related
+
+- [Web App overview](/web): screens and features
+- [Self-Hosting](/install/self-hosting): running Grind on a VPS with systemd and a reverse proxy
+- [Environment Reference](/reference/env): all supported environment variables

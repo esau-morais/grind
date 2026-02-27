@@ -2,6 +2,115 @@ footer {
   margin-top: 2rem;
 }
 
+a[href="#content-area"] {
+  position: fixed !important;
+  top: -3rem !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 9999 !important;
+  padding: 0.5rem 1.25rem !important;
+  background-color: rgb(var(--primary)) !important;
+  color: #fff !important;
+  border-radius: 0 0 0.5rem 0.5rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
+  transition: top 0.15s ease-in-out !important;
+  width: auto !important;
+  height: auto !important;
+  clip: auto !important;
+  overflow: visible !important;
+  margin: 0 !important;
+}
+
+a[href="#content-area"]:focus {
+  top: 0 !important;
+  outline: none !important;
+}
+
+#content-area:focus-visible {
+  outline: none;
+}
+
+html.dark a[href="#content-area"] {
+  background-color: rgb(var(--primary-light)) !important;
+  color: #1a1a1a !important;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--primary));
+  outline-offset: 2px;
+}
+
+html.dark :focus-visible {
+  outline-color: rgb(var(--primary-light));
+}
+
+a[aria-label="Navigate to header"]:focus-visible,
+a[aria-label="Navigate to header"]:focus-visible > div {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: transparent !important;
+}
+
+#navigation-items a:focus-visible {
+  outline-offset: -2px;
+}
+
+#pagination a:first-child:focus-visible {
+  outline-offset: -2px;
+}
+
+[role="tab"]:focus-visible {
+  outline-offset: -2px;
+}
+
+[data-component-part="accordion-button"]:focus-visible {
+  outline: none;
+}
+
+.accordion:has([data-component-part="accordion-button"]:focus-visible) {
+  outline: 2px solid rgb(var(--primary));
+  outline-offset: -2px;
+}
+
+.accordion:first-child:has([data-component-part="accordion-button"]:focus-visible) {
+  outline: none;
+  box-shadow: inset 0 -2px 0 rgb(var(--primary));
+}
+
+.accordion:last-child:has([data-component-part="accordion-button"]:focus-visible) {
+  outline: none;
+  box-shadow: inset 0 2px 0 rgb(var(--primary));
+}
+
+html.dark .accordion:has([data-component-part="accordion-button"]:focus-visible) {
+  outline-color: rgb(var(--primary-light));
+}
+
+html.dark .accordion:first-child:has([data-component-part="accordion-button"]:focus-visible) {
+  box-shadow: inset 0 -2px 0 rgb(var(--primary-light));
+}
+
+html.dark .accordion:last-child:has([data-component-part="accordion-button"]:focus-visible) {
+  box-shadow: inset 0 2px 0 rgb(var(--primary-light));
+}
+
+[data-component-part="code-block-root"]:focus-visible {
+  outline: none;
+}
+
+.code-block:has([data-component-part="code-block-root"]:focus-visible) {
+  outline: 2px solid rgb(var(--primary));
+  outline-offset: -1px;
+}
+
+html.dark .code-block:has([data-component-part="code-block-root"]:focus-visible) {
+  outline-color: rgb(var(--primary-light));
+}
+
 .nav-tabs {
   position: relative;
 }

@@ -25,6 +25,18 @@ export const Hero = () => (
       .dark .grind-hero-subtitle {
         color: rgba(255,255,255,0.5);
       }
+      .grind-hero-primary,
+      .grind-hero-secondary {
+        border-bottom-color: transparent !important;
+      }
+      .grind-hero-primary:focus-visible,
+      .grind-hero-secondary:focus-visible {
+        outline: 2px solid #ff6c05;
+        outline-offset: 3px;
+      }
+      .dark .grind-hero-secondary:focus-visible {
+        outline-color: #ff7a1f;
+      }
       .grind-hero-primary {
         color: #fff;
         background: #ff6c05;

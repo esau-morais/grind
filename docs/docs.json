@@ -48,7 +48,7 @@
           },
           {
             "group": "Install",
-            "pages": ["install/index", "get-started/quickstart"]
+            "pages": ["install/index", "get-started/quickstart", "install/self-hosting"]
           },
           {
             "group": "How It Works",
@@ -102,7 +102,8 @@
               "cli/start",
               "cli/stop",
               "cli/complete",
-              "cli/companion"
+              "cli/companion",
+              "cli/web"
             ]
           },
           {

@@ -84,12 +84,16 @@ Runs the gateway in the foreground (useful for debugging webhook delivery).
 Configure via environment variables:
 
 ```bash
-GATEWAY_PORT=3001            # default: 3001
-GATEWAY_SECRET=...           # shared secret for generic hooks
-TELEGRAM_BOT_TOKEN=...       # for Telegram webhook verification
-DISCORD_PUBLIC_KEY=...       # for Discord Ed25519 verification
-WHATSAPP_APP_SECRET=...      # for WhatsApp HMAC verification
-GOOGLE_CALENDAR_WEBHOOK_TOKEN=...
+GRIND_GATEWAY_PORT=5174              # default: 5174
+GRIND_GATEWAY_TOKEN=...              # shared secret for /hooks/inbound
+GRIND_TELEGRAM_BOT_TOKEN=...         # for Telegram webhook verification
+GRIND_DISCORD_PUBLIC_KEY=...         # for Discord Ed25519 verification
+GRIND_WHATSAPP_APP_SECRET=...        # for WhatsApp HMAC verification
+GRIND_GOOGLE_CALENDAR_CHANNEL_TOKEN=...
 ```
 
 See [Environment Reference](/reference/env) for the full list.
+
+## Related
+
+- [Self-Hosting](/install/self-hosting): expose the gateway publicly for webhooks via a reverse proxy
