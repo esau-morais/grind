@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import * as p from "@clack/prompts";
 
-import { DEFAULT_SOUL, buildUserContext, mergeUserContext } from "@grindxp/core";
+import { DEFAULT_MODELS, DEFAULT_SOUL, buildUserContext, mergeUserContext } from "@grindxp/core";
 import {
   createCompanionInsight,
   deleteCompanionInsight,
@@ -57,11 +57,24 @@ async function requireCompanion(
   ctx: CliContext,
 ): Promise<NonNullable<Awaited<ReturnType<typeof getCompanionByUserId>>>> {
   const companion = await getCompanionByUserId(ctx.db, ctx.user.id);
-  if (!companion) {
-    p.log.error("No companion configured. Run `grindxp init` with companion enabled.");
+  if (companion) return companion;
+
+  const provider = ctx.config.ai?.provider;
+  if (!provider) {
+    p.log.error("AI provider not configured. Run `grindxp setup` first.");
     process.exit(1);
   }
-  return companion;
+
+  const created = await upsertCompanion(ctx.db, {
+    userId: ctx.user.id,
+    mode: "suggest",
+    provider,
+    model: ctx.config.ai?.model ?? DEFAULT_MODELS[provider],
+    systemPrompt: DEFAULT_SOUL,
+  });
+
+  p.log.info("Companion was missing and has been initialized from your AI setup.");
+  return created;
 }
 
 function snippet(value: string, max = 72): string {

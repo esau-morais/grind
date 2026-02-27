@@ -2,16 +2,20 @@ import * as p from "@clack/prompts";
 
 import {
   AI_PROVIDERS,
+  DEFAULT_SOUL,
   type AiConfig,
   type AiProvider,
   type AuthType,
   DEFAULT_MODELS,
   OAUTH_CONFIGS,
+  getMigrationsPath,
+  openVault,
   readGrindConfig,
   startOAuthFlow,
   supportsOAuth,
   writeGrindConfig,
 } from "@grindxp/core";
+import { getCompanionByUserId, upsertCompanion } from "@grindxp/core/vault";
 import { showTitle } from "../brand";
 import { spinner } from "../spinner";
 
@@ -49,6 +53,40 @@ function getAuthChoices(provider: AiProvider): AuthChoice[] {
   });
 
   return choices;
+}
+
+async function syncCompanionFromAi(config: NonNullable<ReturnType<typeof readGrindConfig>>, ai: AiConfig) {
+  const provider = ai.provider;
+  if (!provider) return;
+
+  const model = ai.model ?? DEFAULT_MODELS[provider];
+  const { client, db } = await openVault(
+    { localDbPath: config.vaultPath, encryptionKey: config.encryptionKey },
+    getMigrationsPath(),
+  );
+
+  try {
+    const existing = await getCompanionByUserId(db, config.userId);
+    if (!existing) {
+      await upsertCompanion(db, {
+        userId: config.userId,
+        mode: "suggest",
+        provider,
+        model,
+        systemPrompt: DEFAULT_SOUL,
+      });
+      return "initialized" as const;
+    }
+
+    await upsertCompanion(db, {
+      ...existing,
+      provider,
+      model,
+    });
+    return "synced" as const;
+  } finally {
+    client.close();
+  }
 }
 
 export async function setupCommand(): Promise<void> {
@@ -230,10 +268,17 @@ export async function setupCommand(): Promise<void> {
   if (apiKey) ai.apiKey = apiKey;
   if (baseUrl) ai.baseUrl = baseUrl;
 
+  const companionSync = await syncCompanionFromAi(config, ai);
+
   writeGrindConfig({ ...config, ai });
 
   p.log.success(`Provider: ${PROVIDER_LABELS[provider]}`);
   p.log.success(`Auth: ${authType === "oauth" ? "OAuth (browser)" : "API Key"}`);
   p.log.success(`Model: ${model}`);
+  if (companionSync === "initialized") {
+    p.log.success("Companion: initialized from AI setup.");
+  } else {
+    p.log.success("Companion: synced with selected provider/model.");
+  }
   p.outro("Agent configured. Run `grindxp chat` to start talking.");
 }
