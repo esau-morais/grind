@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
 
           VERSION="${RELEASE_TAG#v}"
-          DATE=$(date -u +%Y-%m-%d)
+          DATE=$(TZ=America/Sao_Paulo date +%Y-%m-%d)
           FILE="docs/reference/changelog.mdx"
           HEADING="## v${VERSION}"
 
@@ -79,9 +79,9 @@ jobs:
             exit 0
           fi
           git commit -m "docs: update changelog for ${{ steps.release.outputs.tag }}"
-          git push origin "$BRANCH"
+          git push --force origin "$BRANCH"
           gh pr create \
             --title "docs: update changelog for ${{ steps.release.outputs.tag }}" \
             --body "Automated changelog update for ${{ steps.release.outputs.tag }}." \
             --base main \
-            --head "$BRANCH"
+            --head "$BRANCH" || true
