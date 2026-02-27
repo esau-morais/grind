@@ -91,12 +91,10 @@ const TOOL_TRUST_REQUIREMENTS: Record<string, number> = {
   // Lv.3 Agent: can create and modify structure
   create_quest: 3,
   update_quest: 3,
-  create_forge_rule: 3,
-  update_forge_rule: 3,
-  delete_forge_rule: 3,
-  run_forge_rule: 3,
   // Lv.4 Sovereign: destructive or sensitive operations
   delete_insight: 4,
+  // Note: forge operations are NOT gated here — they use dynamic risk-based
+  // permission checks based on action type (see requireForgePermission).
 };
 
 function requireTrust(
@@ -111,7 +109,7 @@ function requireTrust(
     const currentName = TRUST_LEVEL_NAMES[current] ?? `Lv.${current}`;
     return {
       denied: true,
-      error: `Action requires trust level ${required} (${requiredName}). Current level: ${current} (${currentName}). Keep using the companion accurately to earn trust.`,
+      error: `Action requires trust level ${required} (${requiredName}). Current level: ${current} (${currentName}). Grant trust with: grindxp companion trust ${required}`,
     };
   }
   return { denied: false };
@@ -1470,7 +1468,7 @@ export function createGrindTools(ctx: ToolContext) {
 
     list_forge_rules: tool({
       description:
-        "List forge automation rules. Use this before updating, deleting, or running a specific rule.",
+        "List forge automation rules. Each rule includes xpImpact: true/false — use this to decide how to communicate the action to the user. Always call this before updating, deleting, or running a specific rule.",
       inputSchema: z.object({
         enabledOnly: z.boolean().optional().describe("When true, return only enabled rules."),
         includeRecentRuns: z
@@ -1505,6 +1503,7 @@ export function createGrindTools(ctx: ToolContext) {
             enabled: rule.enabled,
             triggerType: rule.triggerType,
             actionType: rule.actionType,
+            xpImpact: ["log-to-vault", "update-skill"].includes(rule.actionType),
             triggerConfig: redactForgeValue(rule.triggerConfig),
             actionConfig: redactForgeValue(rule.actionConfig),
             updatedAt: rule.updatedAt,
@@ -1596,7 +1595,7 @@ export function createGrindTools(ctx: ToolContext) {
 
     create_forge_rule: tool({
       description:
-        "Create a forge automation rule. This supports currently implemented actions only: queue-quest, log-to-vault, send-notification.",
+        "Create a forge automation rule (queue-quest, log-to-vault, send-notification). send-notification and queue-quest have no XP impact — create autonomously. log-to-vault auto-awards XP — create it and mention that in your reply. run-script is blocked; direct the user to the CLI.",
       inputSchema: z.object({
         name: z.string().min(2).max(128).describe("Human-readable rule name."),
         triggerType: z
@@ -1621,9 +1620,6 @@ export function createGrindTools(ctx: ToolContext) {
         enabled: z.boolean().default(true).describe("Whether the rule starts enabled."),
       }),
       execute: async ({ name, triggerType, triggerConfig, actionType, actionConfig, enabled }) => {
-        const trust = requireTrust(ctx, "create_forge_rule");
-        if (trust.denied) return { error: trust.error };
-
         const normalized = await normalizeForgeRuleDefinition(ctx, {
           triggerType,
           triggerConfig,
@@ -1632,6 +1628,14 @@ export function createGrindTools(ctx: ToolContext) {
         });
         if (!normalized.ok) {
           return { ok: false, error: normalized.error };
+        }
+
+        if ((actionType as string) === "run-script") {
+          return {
+            ok: false,
+            error:
+              "run-script actions cannot be managed by the companion. Use `grind forge create` directly.",
+          };
         }
 
         const rule = await insertForgeRule(ctx.db, {
@@ -1664,7 +1668,7 @@ export function createGrindTools(ctx: ToolContext) {
 
     update_forge_rule: tool({
       description:
-        "Update a forge rule by ID prefix or name. Use list_forge_rules first to confirm the target.",
+        "Update a forge rule by ID prefix or name. Call list_forge_rules first to confirm the target. Act autonomously — no permission needed unless changing to a log-to-vault action, in which case mention the XP impact in your reply.",
       inputSchema: z
         .object({
           ruleSearch: z.string().min(1).describe("Rule ID prefix or rule name substring."),
@@ -1702,9 +1706,6 @@ export function createGrindTools(ctx: ToolContext) {
         actionConfig,
         enabled,
       }) => {
-        const trust = requireTrust(ctx, "update_forge_rule");
-        if (trust.denied) return { ok: false, error: trust.error };
-
         const rule = await findForgeRuleByPrefix(ctx.db, ctx.userId, ruleSearch);
         if (!rule) {
           return { ok: false, error: `No forge rule matching "${ruleSearch}".` };
@@ -1765,6 +1766,15 @@ export function createGrindTools(ctx: ToolContext) {
           nextActionConfig = normalized.actionConfig;
         }
 
+        const effectiveActionType = actionType ?? rule.actionType;
+        if ((effectiveActionType as string) === "run-script") {
+          return {
+            ok: false,
+            error:
+              "run-script actions cannot be managed by the companion. Use `grind forge edit` directly.",
+          };
+        }
+
         const updated = await updateForgeRule(ctx.db, ctx.userId, rule.id, {
           ...(name !== undefined ? { name } : {}),
           ...(triggerType !== undefined ? { triggerType } : {}),
@@ -1804,18 +1814,22 @@ export function createGrindTools(ctx: ToolContext) {
 
     delete_forge_rule: tool({
       description:
-        "Delete a forge rule by ID prefix or name. Related run history is removed as part of rule deletion.",
+        "Delete a forge rule by ID prefix or name. This is permanent — warn the user before calling this. Run history is also removed.",
       inputSchema: z.object({
         ruleSearch: z.string().min(1).describe("Rule ID prefix or rule name substring."),
       }),
       execute: async ({ ruleSearch }) => {
-        const trust = requireTrust(ctx, "delete_forge_rule");
-        if (trust.denied) return { ok: false, error: trust.error };
-
         const rule = await findForgeRuleByPrefix(ctx.db, ctx.userId, ruleSearch);
         if (!rule) {
           return { ok: false, error: `No forge rule matching "${ruleSearch}".` };
         }
+
+        const perm = await requirePermission(
+          ctx,
+          "delete_forge_rule",
+          `Permanently delete forge rule "${rule.name}"?`,
+        );
+        if (perm.denied) return { ok: false, error: "Deletion cancelled." };
 
         const deleted = await deleteForgeRule(ctx.db, ctx.userId, rule.id);
         if (!deleted) {
@@ -1836,7 +1850,7 @@ export function createGrindTools(ctx: ToolContext) {
 
     run_forge_rule: tool({
       description:
-        "Run a forge rule immediately by ID prefix or name. Useful for testing automation behavior without waiting for its trigger.",
+        "Run a forge rule immediately by ID prefix or name. Check xpImpact from list_forge_rules first: if false (notifications, reminders), run autonomously; if true (log-to-vault), run and mention the XP award in your reply.",
       inputSchema: z.object({
         ruleSearch: z.string().min(1).describe("Rule ID prefix or rule name substring."),
         eventPayload: z
@@ -1849,9 +1863,6 @@ export function createGrindTools(ctx: ToolContext) {
           .describe("When true, skip execution and record as dry run."),
       }),
       execute: async ({ ruleSearch, eventPayload, dryRun }) => {
-        const trust = requireTrust(ctx, "run_forge_rule");
-        if (trust.denied) return { ok: false, error: trust.error };
-
         const rule = await findForgeRuleByPrefix(ctx.db, ctx.userId, ruleSearch);
         if (!rule) {
           return { ok: false, error: `No forge rule matching "${ruleSearch}".` };

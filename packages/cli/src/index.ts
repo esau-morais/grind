@@ -10,6 +10,7 @@ import {
   companionMemoryListCommand,
   companionShowCommand,
   companionSoulCommand,
+  companionTrustCommand,
 } from "./commands/companion";
 import { completeCommand } from "./commands/complete";
 import { dashboardCommand } from "./commands/dashboard";
@@ -205,7 +206,9 @@ async function main(): Promise<void> {
         break;
 
       case "companion":
-        if (sub === "soul") {
+        if (sub === "trust") {
+          await companionTrustCommand(ctx, rest[0]);
+        } else if (sub === "soul") {
           await companionSoulCommand(ctx);
         } else if (sub === "context") {
           await companionContextCommand(ctx, rest.includes("--refresh"));
