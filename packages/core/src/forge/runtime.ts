@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { statSync } from "node:fs";
+import { homedir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
 
 import type {
@@ -517,7 +518,8 @@ async function executeRunScript(plan: ForgeActionPlan): Promise<ForgeActionExecu
   }
 
   const timeoutMs = parsePositiveInt(plan.actionConfig.timeout) ?? 30_000;
-  const workdir = asString(plan.actionConfig.workdir) ?? undefined;
+  const rawWorkdir = asString(plan.actionConfig.workdir);
+  const workdir = rawWorkdir ? rawWorkdir.replace(/^~/, homedir()) : undefined;
 
   const result = spawnSync("sh", ["-c", script], {
     encoding: "utf8",
@@ -526,11 +528,17 @@ async function executeRunScript(plan: ForgeActionPlan): Promise<ForgeActionExecu
     ...(workdir ? { cwd: workdir } : {}),
   });
 
-  const timedOut =
-    result.signal === "SIGTERM" ||
-    (result.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT";
+  const errCode = (result.error as NodeJS.ErrnoException | undefined)?.code;
 
-  if (timedOut) {
+  if (errCode === "ENOENT" && workdir) {
+    return {
+      status: "failed",
+      actionPayload: { script, exitCode: null },
+      error: `Working directory does not exist: ${workdir}`,
+    };
+  }
+
+  if (errCode === "ETIMEDOUT") {
     return {
       status: "failed",
       actionPayload: { script, exitCode: null },

@@ -93,8 +93,8 @@ const TOOL_TRUST_REQUIREMENTS: Record<string, number> = {
   update_quest: 3,
   // Lv.4 Sovereign: destructive or sensitive operations
   delete_insight: 4,
-  // Note: forge operations are NOT gated here — they use dynamic risk-based
-  // permission checks based on action type (see requireForgePermission).
+  // Note: forge operations are not gated by trust level — the AI reasons
+  // autonomously using the xpImpact field returned by list_forge_rules.
 };
 
 function requireTrust(
@@ -1656,7 +1656,8 @@ export function createGrindTools(ctx: ToolContext) {
             "Action configuration object. " +
               "send-notification: required 'message' (static string) or 'script' (shell command whose stdout becomes the message), plus 'channel' (telegram/console/webhook/whatsapp) and channel credentials. " +
               "queue-quest: required 'questId'. " +
-              "log-to-vault: required 'activityType', 'durationMinutes'.",
+              "log-to-vault: required 'activityType', 'durationMinutes'. " +
+              "run-script: required 'script' (shell command), optional 'timeout' (ms, default 30000), optional 'workdir' (supports ~).",
           ),
         enabled: z.boolean().default(true).describe("Whether the rule starts enabled."),
       }),
