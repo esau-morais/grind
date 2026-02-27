@@ -58,7 +58,9 @@ export async function doctorCommand(section: string): Promise<void> {
   }
 
   if (diagnostics.hasMultipleInstallations) {
-    p.log.warn("Multiple installations detected. Keep one install source to avoid update confusion.");
+    p.log.warn(
+      "Multiple installations detected. Keep one install source to avoid update confusion.",
+    );
 
     const cleanupCommands = getCleanupCommands(diagnostics.detectedMethods);
     if (cleanupCommands.length > 0) {
@@ -70,9 +72,13 @@ export async function doctorCommand(section: string): Promise<void> {
 
   p.log.step("PATH");
   if (diagnostics.activeDirectoryOnPath) {
-    p.log.success(`Active bin directory is on PATH: ${shortPath(diagnostics.preferredBinDirectory)}`);
+    p.log.success(
+      `Active bin directory is on PATH: ${shortPath(diagnostics.preferredBinDirectory)}`,
+    );
   } else {
-    p.log.warn(`Active bin directory is not on PATH: ${shortPath(diagnostics.preferredBinDirectory)}`);
+    p.log.warn(
+      `Active bin directory is not on PATH: ${shortPath(diagnostics.preferredBinDirectory)}`,
+    );
   }
 
   if (process.platform !== "win32" && diagnostics.detectedMethods.includes("curl")) {

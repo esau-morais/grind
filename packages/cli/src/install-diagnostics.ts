@@ -124,8 +124,13 @@ async function listCommandPaths(command: string): Promise<string[]> {
   return dedupePaths(candidates.map((path) => toRealPath(path)));
 }
 
-async function detectPackageManagerInstalls(): Promise<Array<Exclude<InstallMethod, "curl" | "unknown">>> {
-  const checks: Array<{ name: Exclude<InstallMethod, "curl" | "unknown">; cmd: () => Promise<string> }> = [
+async function detectPackageManagerInstalls(): Promise<
+  Array<Exclude<InstallMethod, "curl" | "unknown">>
+> {
+  const checks: Array<{
+    name: Exclude<InstallMethod, "curl" | "unknown">;
+    cmd: () => Promise<string>;
+  }> = [
     { name: "npm", cmd: () => $`npm list -g --depth=0`.throws(false).quiet().text() },
     { name: "pnpm", cmd: () => $`pnpm list -g --depth=0`.throws(false).quiet().text() },
     { name: "bun", cmd: () => $`bun pm ls -g`.throws(false).quiet().text() },
@@ -214,7 +219,8 @@ export async function detectInstallDiagnostics(): Promise<InstallDiagnostics> {
   const methods = new Set<Exclude<InstallMethod, "unknown">>(managerMethods);
 
   const curlCommandPath = commandPaths.find((path) => isCurlPath(path));
-  const hasCurl = (process.platform !== "win32" && isCurlPath(execPath)) || Boolean(curlCommandPath);
+  const hasCurl =
+    (process.platform !== "win32" && isCurlPath(execPath)) || Boolean(curlCommandPath);
   if (hasCurl) methods.add("curl");
 
   const orderedMethods = METHOD_PRIORITY.filter((method) => methods.has(method));
@@ -224,7 +230,9 @@ export async function detectInstallDiagnostics(): Promise<InstallDiagnostics> {
   const preferredBinDirectory =
     activeMethod === "curl"
       ? dirname(curlCommandPath ?? execPath)
-      : (primaryCommandPath ? dirname(primaryCommandPath) : dirname(execPath));
+      : primaryCommandPath
+        ? dirname(primaryCommandPath)
+        : dirname(execPath);
 
   const activeDirectoryOnPath = isPathInEnv(preferredBinDirectory);
   const shellProfiles = readShellProfileChecks(preferredBinDirectory);

@@ -55,7 +55,10 @@ function getAuthChoices(provider: AiProvider): AuthChoice[] {
   return choices;
 }
 
-async function syncCompanionFromAi(config: NonNullable<ReturnType<typeof readGrindConfig>>, ai: AiConfig) {
+async function syncCompanionFromAi(
+  config: NonNullable<ReturnType<typeof readGrindConfig>>,
+  ai: AiConfig,
+) {
   const provider = ai.provider;
   if (!provider) return;
 
