@@ -1,6 +1,6 @@
 {
   "name": "@grindxp/cli",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Grind — a gamified productivity CLI. Track quests, earn XP, build streaks.",
   "keywords": [
     "cli",
