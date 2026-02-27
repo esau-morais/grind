@@ -59,7 +59,7 @@ export async function createTestUser(
 export function createTestToolContext(
   db: VaultDb,
   userId: string,
-  overrides: { timerDir?: string } = {},
+  overrides: { timerDir?: string; trustLevel?: number } = {},
 ): ToolContext & { timerDir: string } {
   const dir = overrides.timerDir ?? mkdtempSync(join(tmpdir(), "grind-test-"));
   return {
@@ -67,5 +67,6 @@ export function createTestToolContext(
     userId,
     timerPath: join(dir, "timer.json"),
     timerDir: dir,
+    trustLevel: overrides.trustLevel ?? 4,
   };
 }

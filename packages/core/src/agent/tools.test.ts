@@ -118,6 +118,20 @@ describe("list_quests", () => {
 });
 
 describe("create_quest", () => {
+  test("returns trust error when trust level is below requirement", async () => {
+    const lowTrustTools = createGrindTools(
+      createTestToolContext(vault.db, userId, { timerDir, trustLevel: 0 }),
+    );
+    const result = await call(lowTrustTools.create_quest, {
+      title: "Blocked Quest",
+      type: "bounty",
+      difficulty: "easy",
+      skillTags: [],
+      baseXp: 10,
+    });
+    expect(String(result.error)).toContain("requires trust level");
+  });
+
   test("creates a quest and returns summary", async () => {
     const result = await call(tools.create_quest, {
       title: "Morning Workout",
@@ -517,6 +531,247 @@ describe("forge tools", () => {
     });
     expect(missingToken.ok).toBe(false);
     expect(String(missingToken.error)).toContain("telegram notifications require a bot token");
+  });
+});
+
+describe("forge tools — webhook trigger", () => {
+  test("create_forge_rule with webhook trigger persists triggerType correctly", async () => {
+    const result = await call(tools.create_forge_rule, {
+      name: "On-Demand Webhook Rule",
+      triggerType: "webhook",
+      triggerConfig: {},
+      actionType: "send-notification",
+      actionConfig: { channel: "console", message: "triggered" },
+      enabled: true,
+    });
+    expect(result.ok).toBe(true);
+    const rule = result.rule as Record<string, unknown>;
+    expect(rule["triggerType"]).toBe("webhook");
+    expect(rule["name"]).toBe("On-Demand Webhook Rule");
+  });
+
+  test("update_forge_rule converts cron rule to webhook trigger", async () => {
+    const created = await call(tools.create_forge_rule, {
+      name: "Daily Alert",
+      triggerType: "cron",
+      triggerConfig: { cron: "0 9 * * 1-5", timezone: "UTC" },
+      actionType: "send-notification",
+      actionConfig: { channel: "console", message: "morning" },
+      enabled: true,
+    });
+    expect(created.ok).toBe(true);
+    const ruleId = (created.rule as Record<string, unknown>)["id"] as string;
+
+    const updated = await call(tools.update_forge_rule, {
+      ruleSearch: ruleId.slice(0, 8),
+      triggerType: "webhook",
+      triggerConfig: {},
+    });
+    expect(updated.ok).toBe(true);
+    const rule = updated.rule as Record<string, unknown>;
+    expect(rule["triggerType"]).toBe("webhook");
+  });
+
+  test("update_forge_rule allows webhook conversion without explicit triggerConfig", async () => {
+    const created = await call(tools.create_forge_rule, {
+      name: "Weekly Alert",
+      triggerType: "cron",
+      triggerConfig: { cron: "0 9 * * 1", timezone: "UTC" },
+      actionType: "send-notification",
+      actionConfig: { channel: "console", message: "weekly" },
+      enabled: true,
+    });
+    expect(created.ok).toBe(true);
+    const ruleId = (created.rule as Record<string, unknown>)["id"] as string;
+
+    const updated = await call(tools.update_forge_rule, {
+      ruleSearch: ruleId.slice(0, 8),
+      triggerType: "webhook",
+    });
+    expect(updated.ok).toBe(true);
+    const rule = updated.rule as Record<string, unknown>;
+    expect(rule["triggerType"]).toBe("webhook");
+  });
+
+  test("update_forge_rule still requires triggerConfig when changing to cron", async () => {
+    const created = await call(tools.create_forge_rule, {
+      name: "Manual Alert",
+      triggerType: "manual",
+      triggerConfig: {},
+      actionType: "send-notification",
+      actionConfig: { channel: "console", message: "manual" },
+      enabled: true,
+    });
+    expect(created.ok).toBe(true);
+    const ruleId = (created.rule as Record<string, unknown>)["id"] as string;
+
+    const updated = await call(tools.update_forge_rule, {
+      ruleSearch: ruleId.slice(0, 8),
+      triggerType: "cron",
+    });
+    expect(updated.ok).toBe(false);
+    expect(String(updated.error)).toContain("provide triggerConfig");
+  });
+});
+
+describe("forge tools — run-script validation", () => {
+  test("create_forge_rule run-script without script field returns actionable error", async () => {
+    const result = await call(tools.create_forge_rule, {
+      name: "Missing Script Rule",
+      triggerType: "manual",
+      triggerConfig: {},
+      actionType: "run-script",
+      actionConfig: {},
+      enabled: true,
+    });
+    expect(result.ok).toBe(false);
+    expect(String(result.error).toLowerCase()).toContain("script");
+  });
+
+  test("create_forge_rule run-script with empty string script returns error", async () => {
+    const result = await call(tools.create_forge_rule, {
+      name: "Empty Script Rule",
+      triggerType: "manual",
+      triggerConfig: {},
+      actionType: "run-script",
+      actionConfig: { script: "   " },
+      enabled: true,
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  test("create_forge_rule run-script with valid script and webhook trigger succeeds", async () => {
+    const result = await call(tools.create_forge_rule, {
+      name: "Recreate Church Reminders",
+      triggerType: "webhook",
+      triggerConfig: {},
+      actionType: "run-script",
+      actionConfig: { script: "#!/bin/bash\necho 'recreating reminders'" },
+      enabled: true,
+    });
+    expect(result.ok).toBe(true);
+    const rule = result.rule as Record<string, unknown>;
+    expect(rule["actionType"]).toBe("run-script");
+    expect(rule["triggerType"]).toBe("webhook");
+  });
+
+  test("update_forge_rule changing actionType to run-script requires actionConfig", async () => {
+    const created = await call(tools.create_forge_rule, {
+      name: "Notify Rule",
+      triggerType: "manual",
+      triggerConfig: {},
+      actionType: "send-notification",
+      actionConfig: { channel: "console", message: "ping" },
+      enabled: true,
+    });
+    const ruleId = (created.rule as Record<string, unknown>)["id"] as string;
+
+    const result = await call(tools.update_forge_rule, {
+      ruleSearch: ruleId.slice(0, 8),
+      actionType: "run-script",
+    });
+    expect(result.ok).toBe(false);
+    expect(String(result.error)).toContain("actionConfig");
+  });
+});
+
+describe("forge tools — batch_delete_forge_rules", () => {
+  async function makeRule(name: string) {
+    const result = await call(tools.create_forge_rule, {
+      name,
+      triggerType: "manual",
+      triggerConfig: {},
+      actionType: "send-notification",
+      actionConfig: { channel: "console", message: "ping" },
+      enabled: true,
+    });
+    return result.rule as Record<string, unknown>;
+  }
+
+  test("deletes all matching rules and DB is empty after", async () => {
+    const r1 = await makeRule("Church Reminder A");
+    const r2 = await makeRule("Church Reminder B");
+    const r3 = await makeRule("Church Reminder C");
+
+    const result = await call(tools.batch_delete_forge_rules, {
+      ruleSearches: [r1["name"], r2["name"], r3["name"]],
+    });
+    expect(result.ok).toBe(true);
+    expect(result.deleted).toBe(3);
+    expect(result.failed).toBe(0);
+    expect(result.total).toBe(3);
+
+    const listed = await call(tools.list_forge_rules, { includeRecentRuns: false });
+    expect(listed.count).toBe(0);
+  });
+
+  test("partial match: deletes known rules, reports failures for unknown", async () => {
+    const r1 = await makeRule("Keep Rule A");
+    const r2 = await makeRule("Keep Rule B");
+
+    const result = await call(tools.batch_delete_forge_rules, {
+      ruleSearches: [r1["name"], r2["name"], "no-such-rule-xyz"],
+    });
+    expect(result.ok).toBe(true);
+    expect(result.deleted).toBe(2);
+    expect(result.failed).toBe(1);
+    expect(result.total).toBe(3);
+
+    const listed = await call(tools.list_forge_rules, { includeRecentRuns: false });
+    expect(listed.count).toBe(0);
+  });
+
+  test("permission denied: returns error and DB is unchanged", async () => {
+    const r1 = await makeRule("Protected Rule A");
+    const r2 = await makeRule("Protected Rule B");
+
+    const denyCtx = {
+      ...createTestToolContext(vault.db, userId),
+      requestPermission: async () => "deny" as const,
+    };
+    const denyTools = createGrindTools(denyCtx);
+
+    const result = await call(denyTools.batch_delete_forge_rules, {
+      ruleSearches: [r1["name"], r2["name"]],
+    });
+    expect(result.ok).toBe(false);
+    expect(String(result.error)).toContain("cancelled");
+
+    const listed = await call(tools.list_forge_rules, { includeRecentRuns: false });
+    expect(listed.count).toBe(2);
+  });
+
+  test("single-item array (boundary): deletes exactly one rule", async () => {
+    await makeRule("Solo Rule");
+    await makeRule("Other Rule");
+
+    const result = await call(tools.batch_delete_forge_rules, {
+      ruleSearches: ["Solo Rule"],
+    });
+    expect(result.ok).toBe(true);
+    expect(result.deleted).toBe(1);
+    expect(result.total).toBe(1);
+
+    const listed = await call(tools.list_forge_rules, { includeRecentRuns: false });
+    expect(listed.count).toBe(1);
+    const rules = listed.rules as Array<Record<string, unknown>>;
+    expect(rules[0]?.["name"]).toBe("Other Rule");
+  });
+
+  test("duplicate searches do not delete additional unintended rules", async () => {
+    const r1 = await makeRule("Focus Rule");
+    await makeRule("Focus Rule Secondary");
+    const shortId = (r1["id"] as string).slice(0, 8);
+
+    const result = await call(tools.batch_delete_forge_rules, {
+      ruleSearches: [shortId, shortId],
+    });
+    expect(result.ok).toBe(true);
+    expect(result.deleted).toBe(1);
+    expect(result.failed).toBe(1);
+
+    const listed = await call(tools.list_forge_rules, { includeRecentRuns: false });
+    expect(listed.count).toBe(1);
   });
 });
 

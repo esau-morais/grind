@@ -1636,28 +1636,38 @@ export function createGrindTools(ctx: ToolContext) {
 
     create_forge_rule: tool({
       description:
-        "Create a forge automation rule (queue-quest, log-to-vault, send-notification, run-script). send-notification and queue-quest have no XP impact — create autonomously. log-to-vault auto-awards XP — create it and mention that in your reply. run-script executes a shell script — always include the full script in your reply so the user can verify it.",
+        "Create a forge automation rule. send-notification and queue-quest have no XP impact — create autonomously. log-to-vault auto-awards XP — mention that in your reply. run-script executes a shell script — always show the full script in your reply.",
       inputSchema: z.object({
         name: z.string().min(2).max(128).describe("Human-readable rule name."),
         triggerType: z
           .enum(FORGE_TRIGGER_TYPES)
-          .describe("Trigger type (cron, event, signal, webhook, manual)."),
+          .describe(
+            "'cron': time-based schedule (provide triggerConfig.cron + timezone). " +
+              "'webhook': HTTP-triggered or on-demand (triggerConfig: {}). " +
+              "'manual': CLI-only execution (triggerConfig: {}). " +
+              "'event'/'signal': internal system events.",
+          ),
         triggerConfig: z
           .record(z.string(), z.unknown())
           .default({})
-          .describe("Trigger configuration object."),
+          .describe(
+            "cron: { cron: '0 9 * * 1-5', timezone: 'America/Sao_Paulo' }. webhook/manual: {}.",
+          ),
         actionType: z
           .enum(FORGE_ACTION_TYPES)
-          .describe("Action type (queue-quest, log-to-vault, send-notification)."),
+          .describe(
+            "'run-script': execute a shell script. " +
+              "'send-notification': send a message to a channel. " +
+              "'queue-quest': schedule a quest. " +
+              "'log-to-vault': log a completed activity (awards XP).",
+          ),
         actionConfig: z
           .record(z.string(), z.unknown())
-          .default({})
           .describe(
-            "Action configuration object. " +
-              "send-notification: required 'message' (static string) or 'script' (shell command whose stdout becomes the message), plus 'channel' (telegram/console/webhook/whatsapp) and channel credentials. " +
-              "queue-quest: required 'questId'. " +
-              "log-to-vault: required 'activityType', 'durationMinutes'. " +
-              "run-script: required 'script' (shell command), optional 'timeout' (ms, default 30000), optional 'workdir' (supports ~).",
+            "run-script: { script: '<REQUIRED: shell command>' [, timeout: <ms, default 30000>] [, workdir: '<path, supports ~>'] }. " +
+              "send-notification: { channel: 'telegram|console|webhook|whatsapp', message: '<static text>' | script: '<shell command, stdout becomes message>' }. " +
+              "queue-quest: { questId: '<REQUIRED>' }. " +
+              "log-to-vault: { activityType: 'workout|study|coding|music|cooking|reading|meditation|other' (REQUIRED), durationMinutes: <int> (REQUIRED) [, difficulty: 'easy|medium|hard|epic'] [, title: '<string>'] }.",
           ),
         enabled: z.boolean().default(true).describe("Whether the rule starts enabled."),
       }),
@@ -1707,16 +1717,39 @@ export function createGrindTools(ctx: ToolContext) {
         .object({
           ruleSearch: z.string().min(1).describe("Rule ID prefix or rule name substring."),
           name: z.string().min(2).max(128).optional().describe("New rule name."),
-          triggerType: z.enum(FORGE_TRIGGER_TYPES).optional().describe("New trigger type."),
+          triggerType: z
+            .enum(FORGE_TRIGGER_TYPES)
+            .optional()
+            .describe(
+              "'cron': time-based schedule (provide triggerConfig.cron + timezone). " +
+                "'webhook': HTTP-triggered or on-demand (triggerConfig: {}). " +
+                "'manual': CLI-only execution (triggerConfig: {}). " +
+                "'event'/'signal': internal system events.",
+            ),
           triggerConfig: z
             .record(z.string(), z.unknown())
             .optional()
-            .describe("Updated trigger configuration."),
-          actionType: z.enum(FORGE_ACTION_TYPES).optional().describe("New action type."),
+            .describe(
+              "cron: { cron: '0 9 * * 1-5', timezone: 'America/Sao_Paulo' }. webhook/manual: {}.",
+            ),
+          actionType: z
+            .enum(FORGE_ACTION_TYPES)
+            .optional()
+            .describe(
+              "'run-script': execute a shell script. " +
+                "'send-notification': send a message to a channel. " +
+                "'queue-quest': schedule a quest. " +
+                "'log-to-vault': log a completed activity (awards XP).",
+            ),
           actionConfig: z
             .record(z.string(), z.unknown())
             .optional()
-            .describe("Updated action configuration."),
+            .describe(
+              "run-script: { script: '<REQUIRED: shell command>' [, timeout: <ms>] [, workdir: '<path>'] }. " +
+                "send-notification: { channel: 'telegram|console|webhook|whatsapp', message: '<text>' | script: '<shell cmd>' }. " +
+                "queue-quest: { questId: '<REQUIRED>' }. " +
+                "log-to-vault: { activityType: '...' (REQUIRED), durationMinutes: <int> (REQUIRED) }.",
+            ),
           enabled: z.boolean().optional().describe("Enable or disable rule."),
         })
         .refine(
@@ -1755,7 +1788,13 @@ export function createGrindTools(ctx: ToolContext) {
         let nextActionConfig = actionConfig;
 
         if (updatesDefinition) {
-          if (triggerType !== undefined && triggerConfig === undefined) {
+          const allowsEmptyTriggerConfig = triggerType === "webhook" || triggerType === "manual";
+
+          if (
+            triggerType !== undefined &&
+            triggerConfig === undefined &&
+            !allowsEmptyTriggerConfig
+          ) {
             return {
               ok: false,
               error: "When changing triggerType, provide triggerConfig for the new trigger.",
@@ -1788,7 +1827,11 @@ export function createGrindTools(ctx: ToolContext) {
 
           const normalized = await normalizeForgeRuleDefinition(ctx, {
             triggerType: resolvedTriggerType,
-            triggerConfig: triggerConfig ?? asRecord(rule.triggerConfig) ?? {},
+            triggerConfig:
+              triggerConfig ??
+              (triggerType !== undefined && allowsEmptyTriggerConfig
+                ? {}
+                : (asRecord(rule.triggerConfig) ?? {})),
             actionType: resolvedActionType,
             actionConfig: actionConfig ?? asRecord(rule.actionConfig) ?? {},
           });
@@ -1871,6 +1914,73 @@ export function createGrindTools(ctx: ToolContext) {
             name: rule.name,
           },
         };
+      },
+    }),
+
+    batch_delete_forge_rules: tool({
+      description:
+        "Delete multiple forge rules at once. Call list_forge_rules first to collect rule IDs, then pass them here. One permission prompt covers the entire batch. Use this whenever the user asks to delete more than one rule (e.g. 'delete all', 'delete all of them', 'remove these').",
+      inputSchema: z.object({
+        ruleSearches: z
+          .array(z.string().min(1))
+          .min(1)
+          .describe(
+            "Array of rule ID prefixes or name substrings to delete. Use shortId or name values from list_forge_rules.",
+          ),
+      }),
+      execute: async ({ ruleSearches }) => {
+        const perm = await requirePermission(
+          ctx,
+          "batch_delete_forge_rules",
+          `Permanently delete ${ruleSearches.length} forge rule(s)?`,
+        );
+        if (perm.denied) return { ok: false, error: "Deletion cancelled." };
+
+        const rules = await listForgeRulesByUser(ctx.db, ctx.userId);
+        const results: Array<
+          | { ok: true; id: string; shortId: string; name: string }
+          | { ok: false; search: string; error: string }
+        > = [];
+        const selectedById = new Map<string, string>();
+        const toDelete: Array<{ id: string; name: string }> = [];
+
+        for (const search of ruleSearches) {
+          const lowerSearch = search.toLowerCase();
+          const rule = rules.find(
+            (r) => r.id.startsWith(search) || r.name.toLowerCase().includes(lowerSearch),
+          );
+          if (!rule) {
+            results.push({ ok: false, search, error: `No forge rule matching "${search}".` });
+            continue;
+          }
+
+          const priorSearch = selectedById.get(rule.id);
+          if (priorSearch) {
+            results.push({
+              ok: false,
+              search,
+              error: `Duplicate target. "${search}" matches the same rule as "${priorSearch}".`,
+            });
+            continue;
+          }
+
+          selectedById.set(rule.id, search);
+          toDelete.push({ id: rule.id, name: rule.name });
+        }
+
+        for (const rule of toDelete) {
+          const deleted = await deleteForgeRule(ctx.db, ctx.userId, rule.id);
+          if (deleted) {
+            results.push({ ok: true, id: rule.id, shortId: rule.id.slice(0, 8), name: rule.name });
+          } else {
+            const search = selectedById.get(rule.id) ?? rule.id.slice(0, 8);
+            results.push({ ok: false, search, error: `Failed to delete "${rule.name}".` });
+          }
+        }
+
+        const succeeded = results.filter((r) => r.ok).length;
+        const failed = results.length - succeeded;
+        return { ok: true, deleted: succeeded, failed, total: ruleSearches.length, results };
       },
     }),
 
