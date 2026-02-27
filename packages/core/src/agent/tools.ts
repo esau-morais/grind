@@ -78,43 +78,6 @@ export interface ToolContext {
   requestPermission?: (toolName: string, detail: string) => Promise<PermissionReply>;
 }
 
-const TRUST_LEVEL_NAMES = ["Watcher", "Advisor", "Scribe", "Agent", "Sovereign"] as const;
-
-const TOOL_TRUST_REQUIREMENTS: Record<string, number> = {
-  // Lv.2 Scribe: can act on behalf of the user
-  complete_quest: 2,
-  abandon_quest: 2,
-  activate_quest: 2,
-  start_timer: 2,
-  stop_timer: 2,
-  update_companion_mode: 2,
-  // Lv.3 Agent: can create and modify structure
-  create_quest: 3,
-  update_quest: 3,
-  // Lv.4 Sovereign: destructive or sensitive operations
-  delete_insight: 4,
-  // Note: forge operations are not gated by trust level — the AI reasons
-  // autonomously using the xpImpact field returned by list_forge_rules.
-};
-
-function requireTrust(
-  ctx: ToolContext,
-  toolName: string,
-): { denied: true; error: string } | { denied: false } {
-  const required = TOOL_TRUST_REQUIREMENTS[toolName];
-  if (required === undefined) return { denied: false };
-  const current = ctx.trustLevel ?? 0;
-  if (current < required) {
-    const requiredName = TRUST_LEVEL_NAMES[required] ?? `Lv.${required}`;
-    const currentName = TRUST_LEVEL_NAMES[current] ?? `Lv.${current}`;
-    return {
-      denied: true,
-      error: `Action requires trust level ${required} (${requiredName}). Current level: ${current} (${currentName}). Grant trust with: grindxp companion trust ${required}`,
-    };
-  }
-  return { denied: false };
-}
-
 const MAX_FETCH_SIZE = 50 * 1024;
 const MAX_READ_SIZE = 50 * 1024;
 const MAX_BASH_OUTPUT = 50 * 1024;
@@ -2019,9 +1982,6 @@ export function createGrindTools(ctx: ToolContext) {
           .describe("Base XP before multipliers. 10=small, 25=medium, 50=large, 100=epic"),
       }),
       execute: async ({ title, description, type, difficulty, skillTags, baseXp }) => {
-        const trust = requireTrust(ctx, "create_quest");
-        if (trust.denied) return { error: trust.error };
-
         const active = await listQuestsByUser(ctx.db, ctx.userId, ["active"]);
         if (active.length >= 5) {
           return { error: "Max 5 active quests. Complete or abandon one first." };
@@ -2069,9 +2029,6 @@ export function createGrindTools(ctx: ToolContext) {
           .describe("Duration in minutes if timer proof"),
       }),
       execute: async ({ questSearch, proofType, durationMinutes }) => {
-        const trust = requireTrust(ctx, "complete_quest");
-        if (trust.denied) return { error: trust.error };
-
         const quest = await findQuestByPrefix(ctx.db, ctx.userId, questSearch);
         if (!quest) return { error: `No quest matching "${questSearch}"` };
         if (quest.status === "completed") return { error: "Quest already completed" };
@@ -2113,9 +2070,6 @@ export function createGrindTools(ctx: ToolContext) {
         questSearch: z.string().describe("Quest ID prefix or title substring"),
       }),
       execute: async ({ questSearch }) => {
-        const trust = requireTrust(ctx, "abandon_quest");
-        if (trust.denied) return { error: trust.error };
-
         const quest = await findQuestByPrefix(ctx.db, ctx.userId, questSearch);
         if (!quest) return { error: `No quest matching "${questSearch}"` };
         if (quest.status !== "active") return { error: `Quest is ${quest.status}, not active` };
@@ -2137,9 +2091,6 @@ export function createGrindTools(ctx: ToolContext) {
         questSearch: z.string().describe("Quest ID prefix or title substring"),
       }),
       execute: async ({ questSearch }) => {
-        const trust = requireTrust(ctx, "start_timer");
-        if (trust.denied) return { error: trust.error };
-
         const existing = readTimer(ctx.timerPath);
         if (existing) {
           const elapsed = formatElapsed(existing.startedAt);
@@ -2172,9 +2123,6 @@ export function createGrindTools(ctx: ToolContext) {
           .describe("Whether to also complete the quest with timer-duration proof"),
       }),
       execute: async ({ complete }) => {
-        const trust = requireTrust(ctx, "stop_timer");
-        if (trust.denied) return { error: trust.error };
-
         const timer = readTimer(ctx.timerPath);
         if (!timer) return { error: "No timer running" };
 
@@ -3220,9 +3168,6 @@ export function createGrindTools(ctx: ToolContext) {
         baseXp,
         scheduleCron,
       }) => {
-        const trust = requireTrust(ctx, "update_quest");
-        if (trust.denied) return { error: trust.error };
-
         const quest = await findQuestByPrefix(ctx.db, ctx.userId, questSearch);
         if (!quest) return { error: `No quest matching "${questSearch}"` };
 
@@ -3257,9 +3202,6 @@ export function createGrindTools(ctx: ToolContext) {
         questSearch: z.string().describe("Quest ID prefix or title substring"),
       }),
       execute: async ({ questSearch }) => {
-        const trust = requireTrust(ctx, "activate_quest");
-        if (trust.denied) return { error: trust.error };
-
         const quest = await findQuestByPrefix(ctx.db, ctx.userId, questSearch);
         if (!quest) return { error: `No quest matching "${questSearch}"` };
         if (quest.status === "active") return { error: "Quest is already active." };
@@ -3286,9 +3228,6 @@ export function createGrindTools(ctx: ToolContext) {
         insightId: z.string().min(1).describe("Insight ID (full UUID or short ID prefix)"),
       }),
       execute: async ({ insightId }) => {
-        const trust = requireTrust(ctx, "delete_insight");
-        if (trust.denied) return { error: trust.error };
-
         const insights = await listCompanionInsights(ctx.db, ctx.userId, 200);
         const match = insights.find((i) => i.id === insightId || i.id.startsWith(insightId));
 
@@ -3315,9 +3254,6 @@ export function createGrindTools(ctx: ToolContext) {
         mode: z.enum(["off", "suggest", "assist", "auto"]).describe("New companion mode"),
       }),
       execute: async ({ mode }) => {
-        const trust = requireTrust(ctx, "update_companion_mode");
-        if (trust.denied) return { error: trust.error };
-
         const updated = await updateCompanionMode(ctx.db, ctx.userId, mode);
 
         return { ok: true, mode: updated.mode };
