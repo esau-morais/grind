@@ -27,7 +27,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG=$(gh release list --limit 1 --json tagName --jq '.[0].tagName')
-          BODY=$(gh release view "$TAG" --json body --jq '.body')
+          BODY=$(gh release view "$TAG" --json body --jq '.body' | sed 's/<!--.*-->//g')
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "body<<EOF" >> "$GITHUB_OUTPUT"
           echo "$BODY" >> "$GITHUB_OUTPUT"
