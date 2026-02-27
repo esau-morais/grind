@@ -67,5 +67,6 @@ export function createTestToolContext(
     userId,
     timerPath: join(dir, "timer.json"),
     timerDir: dir,
+    trustLevel: 4,
   };
 }
