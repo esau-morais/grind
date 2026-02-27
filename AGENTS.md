@@ -26,3 +26,4 @@
 ## PR / Changelog Conventions
 
 - PR body is used verbatim as the GitHub release body, which is then prepended to `docs/reference/changelog.mdx` by `sync-changelog.yml`. Keep PR bodies to a short sentence describing the change followed by a tight bullet list of what was added/fixed/changed. No tables, no implementation details, no "Root Cause" / "Why" sections — those belong in commit messages or code comments only.
+- Always add a label to every PR after creating it (`gh pr edit <number> --add-label "<label>"`). Available labels are defined in `.github/release.yml`: `breaking-change`, `feature`, `enhancement`, `bug`, `documentation`.
