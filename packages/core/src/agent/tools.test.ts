@@ -118,6 +118,20 @@ describe("list_quests", () => {
 });
 
 describe("create_quest", () => {
+  test("returns trust error when trust level is below requirement", async () => {
+    const lowTrustTools = createGrindTools(
+      createTestToolContext(vault.db, userId, { timerDir, trustLevel: 0 }),
+    );
+    const result = await call(lowTrustTools.create_quest, {
+      title: "Blocked Quest",
+      type: "bounty",
+      difficulty: "easy",
+      skillTags: [],
+      baseXp: 10,
+    });
+    expect(String(result.error)).toContain("requires trust level");
+  });
+
   test("creates a quest and returns summary", async () => {
     const result = await call(tools.create_quest, {
       title: "Morning Workout",
@@ -557,6 +571,47 @@ describe("forge tools — webhook trigger", () => {
     const rule = updated.rule as Record<string, unknown>;
     expect(rule["triggerType"]).toBe("webhook");
   });
+
+  test("update_forge_rule allows webhook conversion without explicit triggerConfig", async () => {
+    const created = await call(tools.create_forge_rule, {
+      name: "Weekly Alert",
+      triggerType: "cron",
+      triggerConfig: { cron: "0 9 * * 1", timezone: "UTC" },
+      actionType: "send-notification",
+      actionConfig: { channel: "console", message: "weekly" },
+      enabled: true,
+    });
+    expect(created.ok).toBe(true);
+    const ruleId = (created.rule as Record<string, unknown>)["id"] as string;
+
+    const updated = await call(tools.update_forge_rule, {
+      ruleSearch: ruleId.slice(0, 8),
+      triggerType: "webhook",
+    });
+    expect(updated.ok).toBe(true);
+    const rule = updated.rule as Record<string, unknown>;
+    expect(rule["triggerType"]).toBe("webhook");
+  });
+
+  test("update_forge_rule still requires triggerConfig when changing to cron", async () => {
+    const created = await call(tools.create_forge_rule, {
+      name: "Manual Alert",
+      triggerType: "manual",
+      triggerConfig: {},
+      actionType: "send-notification",
+      actionConfig: { channel: "console", message: "manual" },
+      enabled: true,
+    });
+    expect(created.ok).toBe(true);
+    const ruleId = (created.rule as Record<string, unknown>)["id"] as string;
+
+    const updated = await call(tools.update_forge_rule, {
+      ruleSearch: ruleId.slice(0, 8),
+      triggerType: "cron",
+    });
+    expect(updated.ok).toBe(false);
+    expect(String(updated.error)).toContain("provide triggerConfig");
+  });
 });
 
 describe("forge tools — run-script validation", () => {
@@ -701,6 +756,22 @@ describe("forge tools — batch_delete_forge_rules", () => {
     expect(listed.count).toBe(1);
     const rules = listed.rules as Array<Record<string, unknown>>;
     expect(rules[0]?.["name"]).toBe("Other Rule");
+  });
+
+  test("duplicate searches do not delete additional unintended rules", async () => {
+    const r1 = await makeRule("Focus Rule");
+    await makeRule("Focus Rule Secondary");
+    const shortId = (r1["id"] as string).slice(0, 8);
+
+    const result = await call(tools.batch_delete_forge_rules, {
+      ruleSearches: [shortId, shortId],
+    });
+    expect(result.ok).toBe(true);
+    expect(result.deleted).toBe(1);
+    expect(result.failed).toBe(1);
+
+    const listed = await call(tools.list_forge_rules, { includeRecentRuns: false });
+    expect(listed.count).toBe(1);
   });
 });
 

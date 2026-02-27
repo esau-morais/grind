@@ -1788,7 +1788,14 @@ export function createGrindTools(ctx: ToolContext) {
         let nextActionConfig = actionConfig;
 
         if (updatesDefinition) {
-          if (triggerType !== undefined && triggerConfig === undefined) {
+          const allowsEmptyTriggerConfig =
+            triggerType === "webhook" || triggerType === "manual";
+
+          if (
+            triggerType !== undefined &&
+            triggerConfig === undefined &&
+            !allowsEmptyTriggerConfig
+          ) {
             return {
               ok: false,
               error: "When changing triggerType, provide triggerConfig for the new trigger.",
@@ -1821,7 +1828,11 @@ export function createGrindTools(ctx: ToolContext) {
 
           const normalized = await normalizeForgeRuleDefinition(ctx, {
             triggerType: resolvedTriggerType,
-            triggerConfig: triggerConfig ?? asRecord(rule.triggerConfig) ?? {},
+            triggerConfig:
+              triggerConfig ??
+              (triggerType !== undefined && allowsEmptyTriggerConfig
+                ? {}
+                : (asRecord(rule.triggerConfig) ?? {})),
             actionType: resolvedActionType,
             actionConfig: actionConfig ?? asRecord(rule.actionConfig) ?? {},
           });
@@ -1926,21 +1937,44 @@ export function createGrindTools(ctx: ToolContext) {
         );
         if (perm.denied) return { ok: false, error: "Deletion cancelled." };
 
+        const rules = await listForgeRulesByUser(ctx.db, ctx.userId);
         const results: Array<
           | { ok: true; id: string; shortId: string; name: string }
           | { ok: false; search: string; error: string }
         > = [];
+        const selectedById = new Map<string, string>();
+        const toDelete: Array<{ id: string; name: string }> = [];
 
         for (const search of ruleSearches) {
-          const rule = await findForgeRuleByPrefix(ctx.db, ctx.userId, search);
+          const lowerSearch = search.toLowerCase();
+          const rule = rules.find(
+            (r) => r.id.startsWith(search) || r.name.toLowerCase().includes(lowerSearch),
+          );
           if (!rule) {
             results.push({ ok: false, search, error: `No forge rule matching "${search}".` });
             continue;
           }
+
+          const priorSearch = selectedById.get(rule.id);
+          if (priorSearch) {
+            results.push({
+              ok: false,
+              search,
+              error: `Duplicate target. "${search}" matches the same rule as "${priorSearch}".`,
+            });
+            continue;
+          }
+
+          selectedById.set(rule.id, search);
+          toDelete.push({ id: rule.id, name: rule.name });
+        }
+
+        for (const rule of toDelete) {
           const deleted = await deleteForgeRule(ctx.db, ctx.userId, rule.id);
           if (deleted) {
             results.push({ ok: true, id: rule.id, shortId: rule.id.slice(0, 8), name: rule.name });
           } else {
+            const search = selectedById.get(rule.id) ?? rule.id.slice(0, 8);
             results.push({ ok: false, search, error: `Failed to delete "${rule.name}".` });
           }
         }
