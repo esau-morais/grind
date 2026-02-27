@@ -283,6 +283,8 @@ async function executeForgeAction(
         return executeLogToVault(db, userId, plan);
       case "send-notification":
         return executeSendNotification(plan);
+      case "run-script":
+        return executeRunScript(plan);
       default:
         return {
           status: "skipped",
@@ -501,6 +503,54 @@ async function executeSendNotification(plan: ForgeActionPlan): Promise<ForgeActi
       delivered: false,
     },
     error: `Unsupported notification channel '${channel}'.`,
+  };
+}
+
+async function executeRunScript(plan: ForgeActionPlan): Promise<ForgeActionExecution> {
+  const script = asString(plan.actionConfig.script);
+  if (!script) {
+    return {
+      status: "failed",
+      actionPayload: {},
+      error: "run-script requires actionConfig.script.",
+    };
+  }
+
+  const timeoutMs = parsePositiveInt(plan.actionConfig.timeout) ?? 30_000;
+  const workdir = asString(plan.actionConfig.workdir) ?? undefined;
+
+  const result = spawnSync("sh", ["-c", script], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: timeoutMs,
+    ...(workdir ? { cwd: workdir } : {}),
+  });
+
+  const timedOut =
+    result.signal === "SIGTERM" ||
+    (result.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT";
+
+  if (timedOut) {
+    return {
+      status: "failed",
+      actionPayload: { script, exitCode: null },
+      error: `Script timed out after ${timeoutMs}ms.`,
+    };
+  }
+
+  if (result.status !== 0) {
+    const stderr = result.stderr?.trim().slice(0, 500) ?? "";
+    return {
+      status: "failed",
+      actionPayload: { script, exitCode: result.status },
+      error: `Script exited ${result.status ?? "null"}${stderr ? `: ${stderr}` : ""}`,
+    };
+  }
+
+  const stdout = result.stdout?.trim().slice(0, 2_000) ?? "";
+  return {
+    status: "success",
+    actionPayload: { script, exitCode: 0, ...(stdout ? { stdout } : {}) },
   };
 }
 

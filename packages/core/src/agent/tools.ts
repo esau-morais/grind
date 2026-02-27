@@ -521,7 +521,12 @@ function persistTelegramDefaultChatId(ctx: ToolContext, chatId: string): void {
 const FORGE_TRIGGER_TYPES = ["cron", "event", "signal", "webhook", "manual"] as const;
 type ForgeSupportedTriggerType = (typeof FORGE_TRIGGER_TYPES)[number];
 
-const FORGE_ACTION_TYPES = ["queue-quest", "log-to-vault", "send-notification"] as const;
+const FORGE_ACTION_TYPES = [
+  "queue-quest",
+  "log-to-vault",
+  "send-notification",
+  "run-script",
+] as const;
 type ForgeSupportedActionType = (typeof FORGE_ACTION_TYPES)[number];
 
 const FORGE_NOTIFICATION_CHANNELS = ["console", "telegram", "webhook", "whatsapp"] as const;
@@ -932,6 +937,42 @@ async function normalizeForgeRuleDefinition(
           error:
             "send-notification requires actionConfig.message (static text) or actionConfig.script (shell command whose stdout becomes the message).",
         };
+      }
+
+      break;
+    }
+
+    case "run-script": {
+      const script = asNonEmptyString(actionConfig.script);
+      if (!script) {
+        return {
+          ok: false,
+          error: "run-script requires actionConfig.script (shell command to execute).",
+        };
+      }
+
+      actionConfig.script = script;
+
+      if (actionConfig.timeout !== undefined) {
+        const timeout = parsePositiveInt(actionConfig.timeout);
+        if (!timeout) {
+          return {
+            ok: false,
+            error: "run-script actionConfig.timeout must be a positive integer (milliseconds).",
+          };
+        }
+        actionConfig.timeout = timeout;
+      }
+
+      if (actionConfig.workdir !== undefined) {
+        const workdir = asNonEmptyString(actionConfig.workdir);
+        if (!workdir) {
+          return {
+            ok: false,
+            error: "run-script actionConfig.workdir must be a non-empty string when provided.",
+          };
+        }
+        actionConfig.workdir = workdir;
       }
 
       break;
@@ -1595,7 +1636,7 @@ export function createGrindTools(ctx: ToolContext) {
 
     create_forge_rule: tool({
       description:
-        "Create a forge automation rule (queue-quest, log-to-vault, send-notification). send-notification and queue-quest have no XP impact — create autonomously. log-to-vault auto-awards XP — create it and mention that in your reply. run-script is blocked; direct the user to the CLI.",
+        "Create a forge automation rule (queue-quest, log-to-vault, send-notification, run-script). send-notification and queue-quest have no XP impact — create autonomously. log-to-vault auto-awards XP — create it and mention that in your reply. run-script executes a shell script — always include the full script in your reply so the user can verify it.",
       inputSchema: z.object({
         name: z.string().min(2).max(128).describe("Human-readable rule name."),
         triggerType: z
@@ -1628,14 +1669,6 @@ export function createGrindTools(ctx: ToolContext) {
         });
         if (!normalized.ok) {
           return { ok: false, error: normalized.error };
-        }
-
-        if ((actionType as string) === "run-script") {
-          return {
-            ok: false,
-            error:
-              "run-script actions cannot be managed by the companion. Use `grind forge create` directly.",
-          };
         }
 
         const rule = await insertForgeRule(ctx.db, {
@@ -1767,14 +1800,6 @@ export function createGrindTools(ctx: ToolContext) {
         }
 
         const effectiveActionType = actionType ?? rule.actionType;
-        if ((effectiveActionType as string) === "run-script") {
-          return {
-            ok: false,
-            error:
-              "run-script actions cannot be managed by the companion. Use `grind forge edit` directly.",
-          };
-        }
-
         const updated = await updateForgeRule(ctx.db, ctx.userId, rule.id, {
           ...(name !== undefined ? { name } : {}),
           ...(triggerType !== undefined ? { triggerType } : {}),

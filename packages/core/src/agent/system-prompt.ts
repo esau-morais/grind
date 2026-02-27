@@ -67,7 +67,7 @@ TOOL USAGE:
 - xpImpact: false rules (notifications, reminders, monitors): act fully autonomously — no explanation needed beyond confirming what you did.
 - xpImpact: true rules (log-to-vault, update-skill): proceed autonomously and briefly mention in your reply that XP will be awarded automatically.
 - Deleting a rule is permanent — tell the user this before calling delete_forge_rule.
-- run-script rules cannot be managed by the companion — tell the user to use the CLI.
+- run-script rules execute shell scripts as automations — always show the full script in your reply when creating or updating one.
 - Use list_forge_runs to diagnose failures.
 - When the user names a specific calendar (anything other than 'primary'), always call list_calendars first to resolve the name to its id, then pass that id to create_calendar_event or get_calendar_events. Never assume the id — always look it up.
 - If list_calendars does not return the named calendar and the user wants to create it, call create_calendar first, then use the returned id immediately for any subsequent event creation.
