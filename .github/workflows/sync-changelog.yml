@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -64,14 +65,23 @@ jobs:
           } > "${FILE}.tmp"
           mv "${FILE}.tmp" "${FILE}"
 
-      - name: Commit changelog update
+      - name: Open changelog PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          BRANCH="docs/changelog-${{ steps.release.outputs.tag }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
           git add docs/reference/changelog.mdx
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
           fi
-          git commit -m "docs: update changelog for ${{ steps.release.outputs.tag }} [skip ci]"
-          git push origin main
+          git commit -m "docs: update changelog for ${{ steps.release.outputs.tag }}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "docs: update changelog for ${{ steps.release.outputs.tag }}" \
+            --body "Automated changelog update for ${{ steps.release.outputs.tag }}." \
+            --base main \
+            --head "$BRANCH"
