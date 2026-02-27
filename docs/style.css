@@ -3,26 +3,31 @@ footer {
 }
 
 a[href="#content-area"] {
-  position: fixed;
-  top: -3rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 9999;
-  padding: 0.5rem 1.25rem;
-  background-color: rgb(var(--primary));
-  color: #fff;
-  border-radius: 0 0 0.5rem 0.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-  transition: top 0.15s ease-in-out;
+  position: fixed !important;
+  top: -3rem !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 9999 !important;
+  padding: 0.5rem 1.25rem !important;
+  background-color: rgb(var(--primary)) !important;
+  color: #fff !important;
+  border-radius: 0 0 0.5rem 0.5rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25) !important;
+  transition: top 0.15s ease-in-out !important;
+  width: auto !important;
+  height: auto !important;
+  clip: auto !important;
+  overflow: visible !important;
+  margin: 0 !important;
 }
 
 a[href="#content-area"]:focus {
-  top: 0;
-  outline: none;
+  top: 0 !important;
+  outline: none !important;
 }
 
 #content-area:focus-visible {
@@ -30,8 +35,8 @@ a[href="#content-area"]:focus {
 }
 
 html.dark a[href="#content-area"] {
-  background-color: rgb(var(--primary-light));
-  color: #1a1a1a;
+  background-color: rgb(var(--primary-light)) !important;
+  color: #1a1a1a !important;
 }
 
 :focus-visible {
