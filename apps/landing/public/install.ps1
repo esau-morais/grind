@@ -98,5 +98,16 @@ try {
 Write-Host "If grindxp is not recognized, open a new terminal to refresh PATH."
 
 if (-not $NoInit) {
-  grindxp init
+  Write-Host ""
+  Write-Host "Starting setup wizard (-NoInit to skip)..."
+  try {
+    grindxp init
+  } catch {
+    Write-Host ""
+    Write-Host "Setup wizard did not complete. Run 'grindxp init' to retry."
+    throw
+  }
+} else {
+  Write-Host ""
+  Write-Host "Skipped setup wizard (-NoInit). Run 'grindxp init' when you're ready."
 }
