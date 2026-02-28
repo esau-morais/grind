@@ -65,6 +65,16 @@ LEGACY_DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${GRIND_VERSI
 
 # ── Download & install ────────────────────────────────────────────────────────
 
+# ── Early exit if already on this version ─────────────────────────────────────
+
+if command -v "$PRIMARY_CMD" >/dev/null 2>&1; then
+  installed_version="$("$PRIMARY_CMD" --version 2>/dev/null || true)"
+  if [[ "$installed_version" == *"$GRIND_VERSION"* ]]; then
+    echo "grindxp v${GRIND_VERSION} is already installed."
+    exit 0
+  fi
+fi
+
 echo "Installing grindxp v${GRIND_VERSION} (${OS_NAME}/${ARCH_NAME})..."
 
 mkdir -p "$GRIND_INSTALL_DIR"
@@ -98,14 +108,17 @@ if curl -fsSL --progress-bar "$DOWNLOAD_URL" -o "$ARCHIVE_PATH"; then
     exit 1
   fi
 
-  cp "${TMP_DIR}/${BINARY_NAME}" "$DEST"
+  rm -f "$DEST"
+  mv "${TMP_DIR}/${BINARY_NAME}" "$DEST"
   chmod +x "$DEST"
 
   rm -rf "$DRIZZLE_DEST"
   cp -R "${TMP_DIR}/drizzle" "$DRIZZLE_DEST"
 else
   echo "Archive bundle not available for v${GRIND_VERSION}; falling back to legacy binary format..."
-  curl -fsSL --progress-bar "$LEGACY_DOWNLOAD_URL" -o "$DEST"
+  curl -fsSL --progress-bar "$LEGACY_DOWNLOAD_URL" -o "${TMP_DIR}/${BINARY_NAME}"
+  rm -f "$DEST"
+  mv "${TMP_DIR}/${BINARY_NAME}" "$DEST"
   chmod +x "$DEST"
 fi
 
