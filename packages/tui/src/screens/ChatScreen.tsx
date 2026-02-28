@@ -992,8 +992,6 @@ export function ChatScreen(props: ChatScreenProps) {
         const text = textareaRef.current?.plainText ?? "";
         if (text || attachments.length > 0 || pasteBuffers.length > 0) {
           clearPromptAll();
-        } else {
-          onExit();
         }
       }
     }
@@ -1444,7 +1442,7 @@ export function ChatScreen(props: ChatScreenProps) {
                   </text>
                 ) : (
                   <text fg={colors.textDim}>
-                    [<span fg={colors.accent}>Esc</span>] exit
+                    [<span fg={colors.accent}>^C</span>] exit
                   </text>
                 )}
               </>

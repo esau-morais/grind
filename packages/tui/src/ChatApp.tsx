@@ -375,9 +375,6 @@ export function ChatApp(props: ChatAppProps) {
   );
 
   const handleExit = useCallback(() => {
-    if (conversationIdRef.current) {
-      process.stderr.write("\nSession saved. Use /save to flush memory to companion.\n");
-    }
     renderer.destroy();
     process.exit(0);
   }, [renderer]);
