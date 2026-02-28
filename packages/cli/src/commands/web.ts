@@ -162,12 +162,15 @@ function resolveWeb(): WebResolution {
     return { ok: true, serverEntry: embedded };
   }
 
-  // Dev: workspace resolution
+  // Dev: workspace resolution — run server.ts directly (Bun handles TypeScript natively).
+  // server.ts anchors CLIENT_DIRECTORY and SERVER_ENTRY_POINT to its own import.meta.dir
+  // so it works regardless of the CWD the CLI is spawned from.
   try {
     const pkgJson = Bun.resolveSync("@grindxp/web/package.json", import.meta.dir);
     const webDir = dirname(pkgJson);
-    const serverEntry = join(webDir, "dist", "server", "server.js");
-    if (!existsSync(serverEntry)) {
+    const serverEntry = join(webDir, "server.ts");
+    const distEntry = join(webDir, "dist", "server", "server.js");
+    if (!existsSync(serverEntry) || !existsSync(distEntry)) {
       return { ok: false, reason: "not-built" };
     }
     return { ok: true, serverEntry };
