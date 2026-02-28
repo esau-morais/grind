@@ -80,6 +80,7 @@ export async function openVault(
   migrationsFolder: string,
 ): Promise<{ client: Client; db: VaultDb }> {
   const { client, db } = createVaultDatabase(config);
+  await client.execute("PRAGMA busy_timeout = 10000");
   await runMigrations(client, migrationsFolder);
   return { client, db };
 }
