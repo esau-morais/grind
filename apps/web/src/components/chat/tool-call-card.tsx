@@ -2,7 +2,7 @@ import { useState } from "react";
 import { CaretDownIcon, LightningIcon } from "@phosphor-icons/react";
 import { cn } from "#/lib/utils";
 
-const TOOL_LABELS: Record<string, string> = {
+export const TOOL_LABELS: Record<string, string> = {
   get_status: "Get status",
   list_quests: "List quests",
   create_quest: "Create quest",

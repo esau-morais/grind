@@ -3,13 +3,14 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   HourglassIcon,
+  LightningIcon,
   FileIcon,
   FilePdfIcon,
   FileTextIcon,
   FileCodeIcon,
   FileArchiveIcon,
 } from "@phosphor-icons/react";
-import { ToolCallCard } from "./tool-call-card";
+import { ToolCallCard, TOOL_LABELS } from "./tool-call-card";
 import {
   ImageViewer,
   TextFileViewer,
@@ -47,7 +48,14 @@ export interface AssistantMessage {
   isStreaming: boolean;
 }
 
-export type ChatMessage = UserMessage | AssistantMessage;
+export interface ToolMessage {
+  role: "tool";
+  id: string;
+  toolName: string;
+  content: string;
+}
+
+export type ChatMessage = UserMessage | AssistantMessage | ToolMessage;
 
 function FileTypeIcon({ mime, size = 14 }: { mime: string; size?: number }) {
   if (mime === "application/pdf") return <FilePdfIcon size={size} aria-hidden="true" />;
@@ -144,12 +152,28 @@ function UserBubble({ message }: { message: UserMessage }) {
   );
 }
 
-function AssistantBubble({ message }: { message: AssistantMessage }) {
+function AssistantBubble({
+  message,
+  companionEmoji,
+}: {
+  message: AssistantMessage;
+  companionEmoji: string;
+}) {
   const hasContent = message.content.trim().length > 0;
   const hasTools = message.toolCalls.length > 0;
+  const showAvatar = hasContent || hasTools;
 
   return (
-    <div className="flex justify-start">
+    <div className="flex items-start gap-2 justify-start">
+      {showAvatar ? (
+        <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-grind-orange/20 bg-grind-orange/10">
+          <span aria-hidden="true" className="text-[10px] leading-none">
+            {companionEmoji}
+          </span>
+        </div>
+      ) : (
+        <div className="w-5 shrink-0" />
+      )}
       <div className="max-w-[85%] w-full space-y-1">
         {hasTools && (
           <div className="space-y-1">
@@ -273,11 +297,37 @@ function MarkdownContent({ content }: { content: string }) {
   );
 }
 
-interface MessageBubbleProps {
-  message: ChatMessage;
+function ToolResultBubble({ message }: { message: ToolMessage }) {
+  const label = TOOL_LABELS[message.toolName] ?? message.toolName;
+
+  return (
+    <div className="my-1 overflow-hidden rounded-r-lg border-l-2 border-grind-xp/40 bg-secondary/30">
+      <div className="flex items-center gap-2 px-3 py-1.5">
+        <LightningIcon
+          size={12}
+          weight="fill"
+          aria-hidden="true"
+          className="shrink-0 text-muted-foreground/60"
+        />
+        <span className="flex-1 truncate font-mono text-xs text-muted-foreground">
+          {label}
+          {message.content && (
+            <span className="text-muted-foreground/60"> · {message.content}</span>
+          )}
+        </span>
+        <span className="text-[10px] text-grind-xp/80">done</span>
+      </div>
+    </div>
+  );
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+interface MessageBubbleProps {
+  message: ChatMessage;
+  companionEmoji?: string;
+}
+
+export function MessageBubble({ message, companionEmoji = "⚡" }: MessageBubbleProps) {
   if (message.role === "user") return <UserBubble message={message} />;
-  return <AssistantBubble message={message} />;
+  if (message.role === "tool") return <ToolResultBubble message={message} />;
+  return <AssistantBubble message={message} companionEmoji={companionEmoji} />;
 }

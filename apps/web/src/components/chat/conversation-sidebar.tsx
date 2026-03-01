@@ -33,7 +33,7 @@ export function ConversationSidebar({
 }: ConversationSidebarProps) {
   return (
     <aside
-      className="flex w-52 shrink-0 flex-col border-r border-border bg-sidebar"
+      className="flex w-64 shrink-0 flex-col border-r border-border bg-sidebar"
       aria-label="Conversations"
     >
       <div className="flex h-14 items-center justify-end px-3">
