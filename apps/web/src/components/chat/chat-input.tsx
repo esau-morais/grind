@@ -480,11 +480,14 @@ export function ChatInput({
             )}
           </button>
         </div>
-      </form>
 
-      <p aria-hidden="true" className="text-center text-[10px] text-muted-foreground">
-        {hintText}
-      </p>
+        <p
+          aria-hidden="true"
+          className="px-3 pb-2 text-center text-[10px] text-muted-foreground/60"
+        >
+          {hintText}
+        </p>
+      </form>
 
       {historyNavPos !== null && (
         <span className="sr-only" aria-live="polite" aria-atomic="true">

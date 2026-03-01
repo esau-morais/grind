@@ -1,6 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect, useEffectEvent, useRef, useCallback } from "react";
-import { LightningIcon, CopyIcon, CheckIcon } from "@phosphor-icons/react";
+import {
+  LightningIcon,
+  CopyIcon,
+  CheckIcon,
+  ScrollIcon,
+  TimerIcon,
+  CrosshairIcon,
+  PlusCircleIcon,
+} from "@phosphor-icons/react";
 import { cn } from "#/lib/utils";
 import {
   getConversations,
@@ -11,7 +19,7 @@ import {
 } from "#/server/data.functions";
 import { streamMessage } from "#/server/agent.functions";
 import type { ConversationItem, CompanionInfo } from "#/server/data.functions";
-import type { ChatMessage, ToolCallItem } from "#/components/chat/message-bubble";
+import type { ChatMessage, ToolCallItem, ToolMessage } from "#/components/chat/message-bubble";
 import { MessageBubble } from "#/components/chat/message-bubble";
 import { ChatInput } from "#/components/chat/chat-input";
 import type { Attachment } from "#/components/chat/chat-input";
@@ -94,7 +102,7 @@ function ChatPageSkeleton() {
   return (
     <div className="flex h-full overflow-hidden">
       <div className="hidden md:flex">
-        <aside className="flex w-52 shrink-0 flex-col border-r border-border bg-sidebar">
+        <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-sidebar">
           <div className="flex h-14 items-center justify-end px-3">
             <div className="h-8 w-24 rounded-md bg-muted animate-pulse" />
           </div>
@@ -176,10 +184,28 @@ export const Route = createFileRoute("/app/chat/")({
 });
 
 const SUGGESTED_PROMPTS = [
-  "What quests do I have active right now?",
-  "Log a 45-minute chest workout",
-  "What should I focus on today?",
-  "Create a new daily quest for morning reading",
+  {
+    text: "What quests do I have active right now?",
+    icon: (
+      <ScrollIcon size={14} weight="duotone" className="text-grind-orange" aria-hidden="true" />
+    ),
+  },
+  {
+    text: "Log a 45-minute chest workout",
+    icon: <TimerIcon size={14} weight="duotone" className="text-grind-orange" aria-hidden="true" />,
+  },
+  {
+    text: "What should I focus on today?",
+    icon: (
+      <CrosshairIcon size={14} weight="duotone" className="text-grind-orange" aria-hidden="true" />
+    ),
+  },
+  {
+    text: "Create a new daily quest for morning reading",
+    icon: (
+      <PlusCircleIcon size={14} weight="duotone" className="text-grind-orange" aria-hidden="true" />
+    ),
+  },
 ];
 
 function EmptyState({
@@ -193,7 +219,7 @@ function EmptyState({
   const emoji = companion.emoji ?? "⚡";
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full border border-border bg-card">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full border border-grind-orange/20 bg-grind-orange/10">
         <span aria-hidden="true" className="text-2xl">
           {emoji}
         </span>
@@ -204,19 +230,24 @@ function EmptyState({
           Your AI grind partner. Ask anything about your quests, skills, or goals.
         </p>
       </div>
-      <ul className="flex flex-col gap-2 w-full max-w-sm" aria-label="Suggested prompts">
+      <div
+        className="grid w-full max-w-lg grid-cols-1 gap-2 sm:grid-cols-2"
+        role="list"
+        aria-label="Suggested prompts"
+      >
         {SUGGESTED_PROMPTS.map((prompt) => (
-          <li key={prompt}>
-            <button
-              type="button"
-              onClick={() => onPrompt(prompt)}
-              className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-left text-sm text-foreground/80 [touch-action:manipulation] transition-colors duration-150 hover:border-ring/40 hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {prompt}
-            </button>
-          </li>
+          <button
+            key={prompt.text}
+            type="button"
+            role="listitem"
+            onClick={() => onPrompt(prompt.text)}
+            className="flex items-start gap-2.5 rounded-lg border border-border bg-card px-3.5 py-3 text-left text-sm text-foreground/80 [touch-action:manipulation] transition-colors duration-150 hover:border-ring/40 hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span className="mt-0.5 shrink-0">{prompt.icon}</span>
+            <span>{prompt.text}</span>
+          </button>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
@@ -268,6 +299,19 @@ function ChatPage() {
               content: m.content,
               ...(m.attachments && m.attachments.length > 0 ? { attachments: m.attachments } : {}),
             };
+          }
+          if (m.role === "tool") {
+            let toolName = "unknown";
+            if (m.toolResultsJson) {
+              try {
+                const parsed = JSON.parse(m.toolResultsJson) as Array<{ toolName?: string }>;
+                toolName = parsed[0]?.toolName ?? "unknown";
+              } catch {
+                /* ignore */
+              }
+            }
+            const msg: ToolMessage = { role: "tool", id: m.id, toolName, content: m.content };
+            return msg;
           }
           return {
             role: "assistant" as const,
@@ -570,7 +614,11 @@ function ChatPage() {
           )}
 
           {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
+            <MessageBubble
+              key={message.id}
+              message={message}
+              companionEmoji={companion.emoji ?? "⚡"}
+            />
           ))}
 
           <div aria-hidden="true" />

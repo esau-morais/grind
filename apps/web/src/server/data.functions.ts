@@ -5,6 +5,9 @@ import {
   listQuestsByUser,
   listSkillsByUser,
   getCompanionByUserId,
+  listForgeRulesByUser,
+  listRecentForgeRunsByUser,
+  setForgeRuleEnabled,
 } from "@grindxp/core/vault";
 import { appendPromptHistory, getPromptHistory, listConversations } from "@grindxp/core/agent";
 import type { Objective } from "@grindxp/core";
@@ -197,6 +200,7 @@ export interface StoredMessageItem {
   role: string;
   content: string;
   toolCallsJson: string | null;
+  toolResultsJson: string | null;
   attachments: Array<{ mime: string; base64: string }> | null;
   createdAt: number;
 }
@@ -230,6 +234,7 @@ export const loadConversationMessages = createServerFn({ method: "POST" })
       role: m.role,
       content: m.content,
       toolCallsJson: m.toolCalls != null ? JSON.stringify(m.toolCalls) : null,
+      toolResultsJson: m.toolResults != null ? JSON.stringify(m.toolResults) : null,
       attachments: (m.attachments as Array<{ mime: string; base64: string }> | null) ?? null,
       createdAt: m.createdAt,
     }));
@@ -268,4 +273,86 @@ export const appendPromptHistoryEntry = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<void> => {
     const { db, userId } = getVaultContext();
     await appendPromptHistory(db, userId, data.content);
+  });
+
+// ─── Forge page ──────────────────────────────────────────────────────────────
+
+export interface SimpleForgeRuleData {
+  id: string;
+  name: string;
+  triggerType: string;
+  triggerConfig: Record<string, string | number | boolean | null>;
+  actionType: string;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface SimpleForgeRunData {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  triggerType: string;
+  actionType: string;
+  status: string;
+  startedAt: number;
+  finishedAt: number;
+  error: string | null;
+}
+
+export interface ForgePageData {
+  rules: SimpleForgeRuleData[];
+  recentRuns: SimpleForgeRunData[];
+}
+
+export const getForgePageData = createServerFn({ method: "GET" }).handler(
+  async (): Promise<ForgePageData> => {
+    const { db, userId } = getVaultContext();
+    const [rules, runs] = await Promise.all([
+      listForgeRulesByUser(db, userId),
+      listRecentForgeRunsByUser(db, userId, 30),
+    ]);
+
+    return {
+      rules: rules.map((r) => ({
+        id: r.id,
+        name: r.name,
+        triggerType: r.triggerType,
+        triggerConfig: r.triggerConfig as Record<string, string | number | boolean | null>,
+        actionType: r.actionType,
+        enabled: r.enabled,
+        createdAt: r.createdAt,
+        updatedAt: r.updatedAt,
+      })),
+      recentRuns: runs.map((r) => ({
+        id: r.id,
+        ruleId: r.ruleId,
+        ruleName: rules.find((rule) => rule.id === r.ruleId)?.name ?? r.ruleId,
+        triggerType: r.triggerType,
+        actionType: r.actionType,
+        status: r.status,
+        startedAt: r.startedAt,
+        finishedAt: r.finishedAt,
+        error: r.error ?? null,
+      })),
+    };
+  },
+);
+
+function validateToggleForgeRuleInput(data: unknown): { ruleId: string; enabled: boolean } {
+  if (typeof data !== "object" || data === null) throw new Error("Invalid input");
+  const raw = data as Record<string, unknown>;
+  const ruleId = raw["ruleId"];
+  const enabled = raw["enabled"];
+  if (typeof ruleId !== "string") throw new Error("ruleId is required");
+  if (typeof enabled !== "boolean") throw new Error("enabled is required");
+  return { ruleId, enabled };
+}
+
+export const toggleForgeRuleFn = createServerFn({ method: "POST" })
+  .inputValidator(validateToggleForgeRuleInput)
+  .handler(async ({ data }): Promise<{ ok: boolean }> => {
+    const { db } = getVaultContext();
+    await setForgeRuleEnabled(db, data.ruleId, data.enabled);
+    return { ok: true };
   });
