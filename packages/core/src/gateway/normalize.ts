@@ -9,6 +9,21 @@ export interface NormalizedGatewayEvent {
   forgeEvent: ForgeEvent;
 }
 
+/**
+ * Channel-agnostic attachment reference extracted from an inbound webhook message.
+ * Each channel normalizer populates whichever fields it can from the raw payload.
+ * The actual download is handled by the per-channel AI responder, which has access
+ * to the required credentials (bot token, API key, etc.).
+ */
+export interface InboundMedia {
+  /** Channel-specific opaque file identifier (Telegram file_id, WhatsApp media id). */
+  fileId?: string;
+  /** Direct URL when the channel exposes one (e.g. Discord attachments). */
+  url?: string;
+  /** MIME type if known from the webhook payload. */
+  mime?: string;
+}
+
 interface WhatsAppNormalizeOptions {
   source: "message" | "status";
 }
@@ -31,6 +46,11 @@ const telegramMessageSchema = z
     caption: z.string().optional(),
     chat: z.object({ id: z.union([z.number(), z.string()]) }).optional(),
     from: z.object({ id: z.union([z.number(), z.string()]) }).optional(),
+    photo: z.array(z.object({ file_id: z.string() }).passthrough()).optional(),
+    document: z
+      .object({ file_id: z.string(), mime_type: z.string().optional() })
+      .passthrough()
+      .optional(),
   })
   .passthrough();
 
@@ -242,6 +262,14 @@ export function normalizeTelegramWebhookUpdate(
   const senderId = message?.from?.id !== undefined ? String(message.from.id) : null;
   const updateId = update.update_id;
 
+  let inboundMedia: InboundMedia | undefined;
+  if (message?.photo && message.photo.length > 0) {
+    const largest = message.photo[message.photo.length - 1]!;
+    inboundMedia = { fileId: largest.file_id, mime: "image/jpeg" };
+  } else if (message?.document?.mime_type?.startsWith("image/")) {
+    inboundMedia = { fileId: message.document.file_id, mime: message.document.mime_type };
+  }
+
   const payload = {
     channel: "telegram",
     eventName: "message.received",
@@ -249,6 +277,7 @@ export function normalizeTelegramWebhookUpdate(
     ...(chatId ? { chatId } : {}),
     ...(senderId ? { senderId } : {}),
     ...(text ? { text } : {}),
+    ...(inboundMedia ? { inboundMedia } : {}),
   };
 
   return {
@@ -334,6 +363,12 @@ export function normalizeWhatsAppWebhook(
           const messageType = message.type ?? "unknown";
           const contact = value.contacts?.find((contactValue) => contactValue.wa_id === from);
 
+          const waImage = message.image as { id?: string; mime_type?: string } | undefined;
+          let waInboundMedia: InboundMedia | undefined;
+          if (waImage?.id && waImage.mime_type?.startsWith("image/")) {
+            waInboundMedia = { fileId: waImage.id, mime: waImage.mime_type };
+          }
+
           const normalizedPayload = {
             channel: "whatsapp",
             eventName: "message.received",
@@ -345,6 +380,7 @@ export function normalizeWhatsAppWebhook(
             ...(value.metadata?.phone_number_id
               ? { phoneNumberId: value.metadata.phone_number_id }
               : {}),
+            ...(waInboundMedia ? { inboundMedia: waInboundMedia } : {}),
           };
 
           events.push({

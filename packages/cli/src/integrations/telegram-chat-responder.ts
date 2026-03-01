@@ -22,6 +22,7 @@ import {
   type ForgeTickResult,
   type GatewayConfig,
   type GrindConfig,
+  type InboundMedia,
   type NormalizedGatewayEvent,
   type VaultDb,
 } from "@grindxp/core";
@@ -165,8 +166,9 @@ async function handleTelegramEvent(options: {
 
   const chatId = asString(payload.chatId);
   const senderId = asString(payload.senderId);
-  const text = asString(payload.text);
-  if (!chatId || !text) {
+  const text = asString(payload.text) ?? "";
+  const inboundMedia = payload.inboundMedia as InboundMedia | undefined;
+  if (!chatId || (!text && !inboundMedia)) {
     return;
   }
 
@@ -190,9 +192,15 @@ async function handleTelegramEvent(options: {
     cache: options.conversationByChatId,
   });
 
+  let attachment: { mime: string; base64: string } | undefined;
+  if (inboundMedia?.fileId) {
+    attachment = (await fetchTelegramFileAsBase64(options.token, inboundMedia.fileId)) ?? undefined;
+  }
+
   await appendMessage(options.db, conversationId, {
     role: "user",
     content: text,
+    ...(attachment ? { attachments: [attachment] } : {}),
   });
 
   const [storedMessages, user, quests, companion, companionInsights] = await Promise.all([
@@ -624,6 +632,38 @@ async function callTelegramApi(
 
   const result = record.result;
   return result && typeof result === "object" ? (result as Record<string, unknown>) : null;
+}
+
+const TELEGRAM_MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024; // 5 MB
+
+async function fetchTelegramFileAsBase64(
+  token: string,
+  fileId: string,
+): Promise<{ base64: string; mime: string } | null> {
+  let fileInfo: Record<string, unknown> | null;
+  try {
+    fileInfo = await callTelegramApi(token, "getFile", { file_id: fileId });
+  } catch {
+    return null;
+  }
+
+  const filePath =
+    fileInfo && typeof fileInfo["file_path"] === "string" ? fileInfo["file_path"] : null;
+  if (!filePath) return null;
+
+  let res: Response;
+  try {
+    res = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`);
+  } catch {
+    return null;
+  }
+  if (!res.ok) return null;
+
+  const buf = await res.arrayBuffer();
+  if (buf.byteLength > TELEGRAM_MAX_ATTACHMENT_BYTES) return null;
+
+  const mime = res.headers.get("content-type")?.split(";")[0]?.trim() || "image/jpeg";
+  return { base64: Buffer.from(buf).toString("base64"), mime };
 }
 
 function extractChatId(normalized: NormalizedGatewayEvent): string | null {
