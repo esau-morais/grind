@@ -1,0 +1,262 @@
+---
+import '../styles/global.css'
+import Nav from '../components/Nav.astro'
+import Footer from '../components/Footer.astro'
+import PostHog from '../components/posthog.astro'
+import geistLatinWoff2 from '@fontsource-variable/geist/files/geist-latin-wght-normal.woff2?url'
+import jetbrainsMonoLatinWoff2 from '@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2?url'
+import instrumentSerifWoff2 from '@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2?url'
+import instrumentSerifItalicWoff2 from '@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff2?url'
+
+const title = 'Privacy Policy — GRIND'
+const description = 'How GRIND accesses, uses, stores, and protects your data.'
+const canonicalURL = new URL(Astro.url.pathname, Astro.site)
+const LAST_UPDATED = 'March 1, 2026'
+---
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0d0d12" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+    <link rel="canonical" href={canonicalURL.href} />
+
+    <title>{title}</title>
+    <meta name="description" content={description} />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalURL.href} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:site_name" content="GRIND" />
+
+    <link rel="preload" href={geistLatinWoff2} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={jetbrainsMonoLatinWoff2} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={instrumentSerifWoff2} as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href={instrumentSerifItalicWoff2} as="font" type="font/woff2" crossorigin />
+
+    <PostHog />
+  </head>
+  <body>
+    <div class="min-h-screen bg-background">
+      <Nav />
+
+      <main class="mx-auto max-w-3xl px-6 py-16">
+        <header class="mb-12">
+          <p class="mb-3 font-mono text-xs tracking-widest text-muted-foreground uppercase">Legal</p>
+          <h1 class="font-display text-4xl italic text-foreground">Privacy Policy</h1>
+          <p class="mt-3 font-mono text-xs text-muted-foreground">Last updated: {LAST_UPDATED}</p>
+        </header>
+
+        <div class="space-y-10 text-sm leading-relaxed text-muted-foreground">
+
+          <section>
+            <p>
+              GRIND ("we", "our", "us") is a local-first personal operating system. This policy
+              describes what data we access, why, how it is stored, and your rights over it.
+              It applies specifically to data accessed through third-party integrations,
+              including Google OAuth.
+            </p>
+            <p class="mt-4">
+              GRIND is self-hosted software. Unless you explicitly configure a cloud deployment,
+              all data lives on your own machine. You are the data controller.
+            </p>
+          </section>
+
+          <section>
+            <h2 class="mb-4 text-base font-semibold text-foreground">1. Data We Access</h2>
+
+            <div class="space-y-6">
+              <div>
+                <h3 class="mb-2 font-mono text-xs font-medium uppercase tracking-widest text-foreground/70">
+                  Google Account — Always Requested on Connect
+                </h3>
+                <ul class="space-y-2">
+                  <li class="flex gap-3">
+                    <span class="mt-0.5 shrink-0 font-mono text-xs text-grind-orange">openid</span>
+                    <span>Verifies your identity with Google. No personal data is returned beyond a stable user ID.</span>
+                  </li>
+                  <li class="flex gap-3">
+                    <span class="mt-0.5 shrink-0 font-mono text-xs text-grind-orange">profile</span>
+                    <span>Your display name and profile photo URL, used to personalise the GRIND interface.</span>
+                  </li>
+                  <li class="flex gap-3">
+                    <span class="mt-0.5 shrink-0 font-mono text-xs text-grind-orange">email</span>
+                    <span>Your Google email address, used as your GRIND account identifier.</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 class="mb-2 font-mono text-xs font-medium uppercase tracking-widest text-foreground/70">
+                  Google Calendar — Always Requested on Connect
+                </h3>
+                <ul class="space-y-2">
+                  <li class="flex gap-3">
+                    <span class="mt-0.5 shrink-0 font-mono text-xs text-grind-orange">calendar</span>
+                    <span>
+                      Read and write access to your Google Calendars. GRIND reads calendar events to
+                      surface them as quests and reminders. It creates and updates events when you
+                      schedule quests or Forge automations that target your calendar.
+                    </span>
+                  </li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 class="mb-2 font-mono text-xs font-medium uppercase tracking-widest text-foreground/70">
+                  Gmail — Optional, User-Enabled Only
+                </h3>
+                <p class="mb-2">
+                  Gmail access is not requested during initial Google sign-in. It is only requested
+                  if you explicitly enable the Gmail integration from the Integrations settings page.
+                </p>
+                <ul class="space-y-2">
+                  <li class="flex gap-3">
+                    <span class="mt-0.5 shrink-0 font-mono text-xs text-grind-orange">gmail.readonly</span>
+                    <span>
+                      Read-only access to your Gmail messages. Used to surface relevant emails as
+                      context for your AI companion and Forge automations. GRIND does not store full
+                      email bodies; it indexes metadata and extracts structured data you configure.
+                    </span>
+                  </li>
+                  <li class="flex gap-3">
+                    <span class="mt-0.5 shrink-0 font-mono text-xs text-grind-orange">gmail.send</span>
+                    <span>
+                      Ability to send email on your behalf. Used exclusively when you trigger a
+                      send-email action via the AI companion or a Forge rule that you have explicitly
+                      created and activated.
+                    </span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2 class="mb-4 text-base font-semibold text-foreground">2. How We Use Your Data</h2>
+            <ul class="space-y-3">
+              <li class="flex gap-3">
+                <span class="mt-0.5 shrink-0 text-grind-orange">→</span>
+                <span><strong class="font-medium text-foreground">Quests and XP.</strong> Calendar events are converted into quests. Completing quests awards XP and updates your skill tree. No data leaves your device for this purpose.</span>
+              </li>
+              <li class="flex gap-3">
+                <span class="mt-0.5 shrink-0 text-grind-orange">→</span>
+                <span><strong class="font-medium text-foreground">AI Companion.</strong> When you send a message to your AI companion, GRIND may include structured summaries of your calendar or email data as context. Only data you have explicitly made available, and only within the context window of the request you initiate.</span>
+              </li>
+              <li class="flex gap-3">
+                <span class="mt-0.5 shrink-0 text-grind-orange">→</span>
+                <span><strong class="font-medium text-foreground">Forge Automations.</strong> Forge rules you create may read calendar or Gmail data as triggers. The actions taken are exactly those you define — GRIND does not create automations without your explicit configuration.</span>
+              </li>
+              <li class="flex gap-3">
+                <span class="mt-0.5 shrink-0 text-grind-orange">→</span>
+                <span><strong class="font-medium text-foreground">Analytics.</strong> Aggregated quest and XP data is used to power your personal analytics dashboard. This data never leaves your instance.</span>
+              </li>
+            </ul>
+            <p class="mt-4">
+              GRIND does not use your Google data to train machine learning models, for advertising,
+              or for any purpose other than providing the features described above.
+            </p>
+          </section>
+
+          <section>
+            <h2 class="mb-4 text-base font-semibold text-foreground">3. Data Sharing</h2>
+            <p class="mb-4">
+              We do not sell, rent, or share your Google user data with any third parties for
+              marketing, advertising, or analytics purposes.
+            </p>
+            <p class="mb-4">
+              The only case where your data is transmitted to a third party is when you use the
+              AI companion: GRIND sends the conversation context (which may include structured
+              summaries of calendar or email data you have enabled) to the AI inference provider
+              configured in your instance — by default this is Anthropic or OpenAI. These
+              providers process requests on your behalf and are governed by their own privacy
+              policies. GRIND does not send raw email content or full calendar data to AI providers.
+            </p>
+            <p>
+              GRIND is self-hosted software. If you deploy it to a cloud provider (e.g. Cloudflare,
+              a VPS), your data is subject to that provider's infrastructure policies. We do not
+              operate a shared GRIND cloud.
+            </p>
+          </section>
+
+          <section>
+            <h2 class="mb-4 text-base font-semibold text-foreground">4. Data Storage and Security</h2>
+            <ul class="space-y-3">
+              <li class="flex gap-3">
+                <span class="mt-0.5 shrink-0 text-grind-orange">→</span>
+                <span><strong class="font-medium text-foreground">Local SQLite.</strong> All GRIND data — including OAuth tokens, calendar syncs, and quest history — is stored in a local SQLite database on the machine where GRIND runs. You control this file entirely.</span>
+              </li>
+              <li class="flex gap-3">
+                <span class="mt-0.5 shrink-0 text-grind-orange">→</span>
+                <span><strong class="font-medium text-foreground">Token encryption.</strong> OAuth access tokens and refresh tokens are stored encrypted at rest using AES-256.</span>
+              </li>
+              <li class="flex gap-3">
+                <span class="mt-0.5 shrink-0 text-grind-orange">→</span>
+                <span><strong class="font-medium text-foreground">Transport security.</strong> All communication between GRIND and Google APIs uses HTTPS/TLS. The GRIND web interface enforces HTTPS when deployed.</span>
+              </li>
+              <li class="flex gap-3">
+                <span class="mt-0.5 shrink-0 text-grind-orange">→</span>
+                <span><strong class="font-medium text-foreground">Minimum scope.</strong> GRIND requests only the OAuth scopes required for the features you enable. Gmail scopes are never requested unless you explicitly activate the Gmail integration.</span>
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 class="mb-4 text-base font-semibold text-foreground">5. Data Retention and Deletion</h2>
+            <p class="mb-4">
+              Your data is retained as long as you run GRIND. There is no automatic expiry.
+            </p>
+            <p class="mb-4">
+              <strong class="font-medium text-foreground">Revoke Google access at any time</strong> via
+              your Google Account permissions page at{' '}
+              <a
+                href="https://myaccount.google.com/permissions"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="text-foreground underline underline-offset-4 transition-colors hover:text-grind-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                myaccount.google.com/permissions
+              </a>.
+              Revoking access immediately invalidates GRIND's tokens; the app will stop syncing
+              Google data and will prompt you to reconnect.
+            </p>
+            <p class="mb-4">
+              <strong class="font-medium text-foreground">Delete your data from within GRIND</strong> via
+              Settings → Account → Delete Account. This removes all locally stored quest history,
+              XP, tokens, and Google data from the SQLite database.
+            </p>
+            <p>
+              <strong class="font-medium text-foreground">Request deletion by email.</strong> If you
+              need assistance or cannot access the app, email us at{' '}
+              <a
+                href="mailto:privacy@grindxp.app"
+                class="text-foreground underline underline-offset-4 transition-colors hover:text-grind-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                privacy@grindxp.app
+              </a>{' '}
+              and we will respond within 30 days.
+            </p>
+          </section>
+
+          <section>
+            <h2 class="mb-4 text-base font-semibold text-foreground">6. Contact</h2>
+            <p>
+              Questions about this policy? Email{' '}
+              <a
+                href="mailto:privacy@grindxp.app"
+                class="text-foreground underline underline-offset-4 transition-colors hover:text-grind-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                privacy@grindxp.app
+              </a>.
+            </p>
+          </section>
+
+        </div>
+      </main>
+
+      <Footer />
+    </div>
+  </body>
+</html>
