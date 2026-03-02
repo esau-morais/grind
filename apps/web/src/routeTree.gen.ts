@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from "./routes/__root";
 import { Route as AppRouteImport } from "./routes/app";
 import { Route as IndexRouteImport } from "./routes/index";
 import { Route as AppIndexRouteImport } from "./routes/app/index";
+import { Route as AuthCallbackRouteImport } from "./routes/auth/callback";
 import { Route as ApiHealthRouteImport } from "./routes/api/health";
 import { Route as AppSkillsIndexRouteImport } from "./routes/app/skills/index";
 import { Route as AppQuestsIndexRouteImport } from "./routes/app/quests/index";
@@ -35,6 +36,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
   id: "/",
   path: "/",
   getParentRoute: () => AppRoute,
+} as any);
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: "/auth/callback",
+  path: "/auth/callback",
+  getParentRoute: () => rootRouteImport,
 } as any);
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: "/api/health",
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   "/": typeof IndexRoute;
   "/app": typeof AppRouteWithChildren;
   "/api/health": typeof ApiHealthRoute;
+  "/auth/callback": typeof AuthCallbackRoute;
   "/app/": typeof AppIndexRoute;
   "/app/analytics/": typeof AppAnalyticsIndexRoute;
   "/app/chat/": typeof AppChatIndexRoute;
@@ -93,6 +100,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   "/": typeof IndexRoute;
   "/api/health": typeof ApiHealthRoute;
+  "/auth/callback": typeof AuthCallbackRoute;
   "/app": typeof AppIndexRoute;
   "/app/analytics": typeof AppAnalyticsIndexRoute;
   "/app/chat": typeof AppChatIndexRoute;
@@ -107,6 +115,7 @@ export interface FileRoutesById {
   "/": typeof IndexRoute;
   "/app": typeof AppRouteWithChildren;
   "/api/health": typeof ApiHealthRoute;
+  "/auth/callback": typeof AuthCallbackRoute;
   "/app/": typeof AppIndexRoute;
   "/app/analytics/": typeof AppAnalyticsIndexRoute;
   "/app/chat/": typeof AppChatIndexRoute;
@@ -122,6 +131,7 @@ export interface FileRouteTypes {
     | "/"
     | "/app"
     | "/api/health"
+    | "/auth/callback"
     | "/app/"
     | "/app/analytics/"
     | "/app/chat/"
@@ -134,6 +144,7 @@ export interface FileRouteTypes {
   to:
     | "/"
     | "/api/health"
+    | "/auth/callback"
     | "/app"
     | "/app/analytics"
     | "/app/chat"
@@ -147,6 +158,7 @@ export interface FileRouteTypes {
     | "/"
     | "/app"
     | "/api/health"
+    | "/auth/callback"
     | "/app/"
     | "/app/analytics/"
     | "/app/chat/"
@@ -161,6 +173,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
   AppRoute: typeof AppRouteWithChildren;
   ApiHealthRoute: typeof ApiHealthRoute;
+  AuthCallbackRoute: typeof AuthCallbackRoute;
 }
 
 declare module "@tanstack/react-router" {
@@ -185,6 +198,13 @@ declare module "@tanstack/react-router" {
       fullPath: "/app/";
       preLoaderRoute: typeof AppIndexRouteImport;
       parentRoute: typeof AppRoute;
+    };
+    "/auth/callback": {
+      id: "/auth/callback";
+      path: "/auth/callback";
+      fullPath: "/auth/callback";
+      preLoaderRoute: typeof AuthCallbackRouteImport;
+      parentRoute: typeof rootRouteImport;
     };
     "/api/health": {
       id: "/api/health";
@@ -273,6 +293,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   ApiHealthRoute: ApiHealthRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

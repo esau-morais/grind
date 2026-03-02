@@ -18,6 +18,14 @@ import {
 import { getCompanionByUserId, upsertCompanion } from "@grindxp/core/vault";
 import { showTitle } from "../brand";
 import { spinner } from "../spinner";
+import { resolveWeb } from "./web";
+import {
+  clearWebProcessState,
+  getManagedWebStatus,
+  startManagedWeb,
+  WEB_HOST,
+  WEB_PORT,
+} from "../web/service";
 
 const PROVIDER_LABELS: Record<AiProvider, string> = {
   anthropic: "Anthropic (Claude)",
@@ -178,8 +186,15 @@ export async function setupCommand(): Promise<void> {
         process.exit(1);
       }
 
+      // For callback-method OAuth (OpenAI), the web server must be running so
+      // the browser's redirect to localhost:3000/auth/callback is handled.
+      if (oauthConfig.method === "callback") {
+        await ensureWebServer();
+      }
+
       const flow = startOAuthFlow(provider, oauthConfig);
 
+      // Try to open the browser automatically; always print the URL as fallback.
       const openCmd =
         process.platform === "darwin"
           ? "open"
@@ -187,15 +202,20 @@ export async function setupCommand(): Promise<void> {
             ? "start"
             : "xdg-open";
 
+      let browserOpened = false;
       try {
         Bun.spawn([openCmd, flow.authUrl], { stdio: ["ignore", "ignore", "ignore"] });
-        p.log.info("Browser opened for authentication.");
-      } catch {
-        p.log.warn("Could not open browser automatically.");
-        p.log.info(`Open this URL manually:\n  ${flow.authUrl}`);
+        browserOpened = true;
+      } catch {}
+
+      if (browserOpened) {
+        p.log.info("Browser opened. Complete the login and return here.");
+      } else {
+        p.log.info(`Open this URL in your browser:\n  ${flow.authUrl}`);
       }
 
       if (flow.method === "code") {
+        // Anthropic: user pastes a code shown in the browser.
         const codeResult = await p.text({
           message: "Paste the authorization code from the browser",
           placeholder: "code...",
@@ -210,7 +230,7 @@ export async function setupCommand(): Promise<void> {
         }
 
         const spin = spinner();
-        spin.start("Exchanging authorization code...");
+        spin.start("Exchanging authorization code…");
 
         try {
           await flow.completeWithCode(codeResult as string);
@@ -221,16 +241,65 @@ export async function setupCommand(): Promise<void> {
           process.exit(1);
         }
       } else {
+        // OpenAI: web server handles the redirect and writes the code to disk;
+        // the CLI polls for it. Falls back to manual URL paste if that times out.
         const spin = spinner();
-        spin.start("Waiting for browser authentication");
+        spin.start("Waiting for authentication…");
 
+        let oauthDone = false;
         try {
           await flow.complete();
+          oauthDone = true;
           spin.stop("Authenticated successfully.");
-        } catch (err) {
-          spin.error("Authentication failed.");
-          p.log.error(err instanceof Error ? err.message : String(err));
-          process.exit(1);
+        } catch {
+          spin.stop("Automatic callback not received.");
+        }
+
+        if (!oauthDone) {
+          // Fallback: browser couldn't reach the web server (e.g. no port
+          // forwarding set up). Ask the user to copy the redirect URL from
+          // their browser's address bar — it contains the code even when the
+          // page shows "connection refused".
+          p.log.warn(
+            `Could not receive the OAuth callback automatically.\n` +
+              `  If you're on a remote server, make sure port ${WEB_PORT} is forwarded:\n` +
+              `  ssh -L ${WEB_PORT}:127.0.0.1:${WEB_PORT} <user@server>`,
+          );
+          p.log.info(
+            `Copy the full URL from your browser's address bar after logging in\n` +
+              `  (it starts with http://${WEB_HOST}:${WEB_PORT}/auth/callback?code=…)`,
+          );
+
+          const urlResult = await p.text({
+            message: "Paste the redirect URL",
+            placeholder: `http://${WEB_HOST}:${WEB_PORT}/auth/callback?code=…&state=…`,
+            validate: (v) => {
+              if (!v) return "URL is required";
+              try {
+                if (!new URL(v).searchParams.get("code")) return "No authorization code in URL";
+              } catch {
+                return "Invalid URL";
+              }
+            },
+          });
+
+          if (p.isCancel(urlResult)) {
+            p.outro("Cancelled.");
+            return;
+          }
+
+          const code = new URL(urlResult as string).searchParams.get("code") as string;
+
+          const spin2 = spinner();
+          spin2.start("Exchanging authorization code…");
+          try {
+            await flow.completeWithCode(code);
+            spin2.stop("Authenticated successfully.");
+          } catch (err) {
+            spin2.error("Authentication failed.");
+            p.log.error(err instanceof Error ? err.message : String(err));
+            process.exit(1);
+          }
         }
       }
     }
@@ -284,4 +353,23 @@ export async function setupCommand(): Promise<void> {
     p.log.success("Companion: synced with selected provider/model.");
   }
   p.outro("Agent configured. Run `grindxp chat` to start talking.");
+}
+
+async function ensureWebServer(): Promise<void> {
+  const status = await getManagedWebStatus();
+  if (status.reachable) return;
+
+  if (status.state && !status.running) clearWebProcessState();
+
+  const web = resolveWeb();
+  if (!web.ok) return;
+
+  const spin = spinner();
+  spin.start("Starting web server for OAuth callback…");
+  try {
+    await startManagedWeb(web.serverEntry);
+    spin.stop(`Web server ready at http://${WEB_HOST}:${WEB_PORT}`);
+  } catch {
+    spin.stop("Web server could not start — OAuth callback may not work automatically.");
+  }
 }
