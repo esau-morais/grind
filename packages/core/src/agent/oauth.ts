@@ -1,6 +1,6 @@
-import { createServer } from "node:http";
-import type { Socket } from "node:net";
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import type { AiProvider } from "../grind-home";
+import { getOAuthPendingPath } from "../grind-home";
 import { type OAuthToken, saveOAuthToken } from "./auth-store";
 
 interface PkceCodes {
@@ -59,7 +59,7 @@ const OPENAI_OAUTH: OAuthCallbackConfig = {
   tokenUrl: "https://auth.openai.com/oauth/token",
   clientId: "app_EMoamEEZ73f0CkXaXp7hrann",
   scopes: "openid profile email offline_access",
-  callbackPort: 1455,
+  callbackPort: 3000,
   extraParams: {
     id_token_add_organizations: "true",
     codex_cli_simplified_flow: "true",
@@ -101,6 +101,7 @@ export interface OAuthCallbackFlowHandle {
   method: "callback";
   authUrl: string;
   complete: () => Promise<OAuthResult>;
+  completeWithCode: (code: string) => Promise<OAuthResult>;
 }
 
 export interface OAuthCodeFlowHandle {
@@ -212,8 +213,7 @@ function startCallbackFlow(
   const baseAuthUrl = config.authorizeUrl ?? `${config.issuer}/oauth/authorize`;
   const authUrl = `${baseAuthUrl}?${params.toString()}`;
 
-  const complete = async (): Promise<OAuthResult> => {
-    const code = await waitForCallback(config.callbackPort, state);
+  const completeWithCode = async (code: string): Promise<OAuthResult> => {
     const tokens = await exchangeCallbackCode(config, redirectUri, pkce, code);
 
     const chatgptAccountId = extractChatgptAccountId(tokens.idToken, tokens.accessToken);
@@ -232,7 +232,12 @@ function startCallbackFlow(
     return { token: oauthToken };
   };
 
-  return { method: "callback", authUrl, complete };
+  const complete = async (): Promise<OAuthResult> => {
+    const code = await waitForCallback(state);
+    return completeWithCode(code);
+  };
+
+  return { method: "callback", authUrl, complete, completeWithCode };
 }
 
 // ---------------------------------------------------------------------------
@@ -376,94 +381,58 @@ export async function refreshOAuthToken(
 }
 
 // ---------------------------------------------------------------------------
-// Local HTTP callback server (OpenAI flow)
+// File-based callback poller (OpenAI flow)
+//
+// The web server (localhost:3000) handles GET /auth/callback and writes the
+// code + state to ~/.grind/oauth-pending.json. This poller reads that file
+// so the CLI process can pick up the result without needing its own HTTP server.
 // ---------------------------------------------------------------------------
 
-function waitForCallback(port: number, expectedState: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const openSockets = new Set<Socket>();
-
-    const server = createServer((req, res) => {
-      // Tell the browser to close the connection immediately so server.close()
-      // doesn't wait on keep-alive connections.
-      res.setHeader("Connection", "close");
-
-      const url = new URL(req.url ?? "/", `http://localhost:${port}`);
-
-      if (url.pathname !== "/auth/callback") {
-        res.writeHead(404);
-        res.end("Not found");
-        return;
-      }
-
-      const code = url.searchParams.get("code");
-      const state = url.searchParams.get("state");
-      const error = url.searchParams.get("error");
-
-      if (error) {
-        res.writeHead(200, { "Content-Type": "text/html" });
-        res.end(htmlPage("Authentication Failed", `Error: ${error}. You can close this tab.`));
-        shutdown();
-        reject(new Error(`OAuth error: ${error}`));
-        return;
-      }
-
-      if (state !== expectedState) {
-        res.writeHead(400, { "Content-Type": "text/html" });
-        res.end(htmlPage("Error", "State mismatch. You can close this tab."));
-        shutdown();
-        reject(new Error("OAuth state mismatch"));
-        return;
-      }
-
-      if (!code) {
-        res.writeHead(400, { "Content-Type": "text/html" });
-        res.end(htmlPage("Error", "No authorization code received. You can close this tab."));
-        shutdown();
-        reject(new Error("No authorization code"));
-        return;
-      }
-
-      res.writeHead(200, { "Content-Type": "text/html" });
-      res.end(htmlPage("Success", "Authenticated. You can close this tab and return to grind."));
-      shutdown();
-      resolve(code);
-    });
-
-    server.on("connection", (socket: Socket) => {
-      openSockets.add(socket);
-      socket.once("close", () => openSockets.delete(socket));
-    });
-
-    server.on("error", (err: NodeJS.ErrnoException) => {
-      shutdown();
-      const msg =
-        err.code === "EADDRINUSE"
-          ? `Port ${port} is already in use. Close any other grind processes and try again.`
-          : `Callback server error: ${err.message}`;
-      reject(new Error(msg));
-    });
-
-    const timeoutHandle = setTimeout(() => {
-      shutdown();
-      reject(new Error("OAuth callback timed out after 120s"));
-    }, 120_000);
-
-    function shutdown() {
-      clearTimeout(timeoutHandle);
-      for (const socket of openSockets) socket.destroy();
-      openSockets.clear();
-      server.close();
-    }
-
-    server.listen(port, "127.0.0.1");
-  });
+interface OAuthPending {
+  code?: string;
+  state: string;
+  error?: string;
+  ts: number;
 }
 
-function htmlPage(title: string, body: string): string {
-  return `<!DOCTYPE html><html><head><title>grind - ${title}</title>
-<style>body{font-family:system-ui;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#1a1b26;color:#c0caf5}
-.card{text-align:center;padding:2rem;border:1px solid #3b4261;border-radius:12px;background:#24283b}
-h1{color:#7aa2f7;margin-bottom:0.5rem}p{color:#a9b1d6}</style></head>
-<body><div class="card"><h1>${title}</h1><p>${body}</p></div></body></html>`;
+function waitForCallback(expectedState: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const pendingPath = getOAuthPendingPath();
+    const deadline = Date.now() + 120_000;
+
+    // Clean up any stale pending file from a previous run.
+    try {
+      if (existsSync(pendingPath)) unlinkSync(pendingPath);
+    } catch {}
+
+    const tick = () => {
+      if (Date.now() > deadline) {
+        reject(new Error("OAuth callback timed out after 120s"));
+        return;
+      }
+
+      if (existsSync(pendingPath)) {
+        try {
+          const data = JSON.parse(readFileSync(pendingPath, "utf-8")) as OAuthPending;
+          if (data.state === expectedState) {
+            try {
+              unlinkSync(pendingPath);
+            } catch {}
+            if (data.error) {
+              reject(new Error(`OAuth error: ${data.error}`));
+            } else if (data.code) {
+              resolve(data.code);
+            } else {
+              reject(new Error("OAuth callback received but contained no code"));
+            }
+            return;
+          }
+        } catch {}
+      }
+
+      setTimeout(tick, 300);
+    };
+
+    tick();
+  });
 }

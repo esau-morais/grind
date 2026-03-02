@@ -110,6 +110,10 @@ export function getServiceStatePath(): string {
   return join(getGrindHome(), "service-state.json");
 }
 
+export function getOAuthPendingPath(): string {
+  return join(getGrindHome(), "oauth-pending.json");
+}
+
 export function getMigrationsPath(): string {
   const candidates = [
     join(import.meta.dir, "drizzle"),

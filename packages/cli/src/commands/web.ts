@@ -155,7 +155,7 @@ type WebResolution =
   | { ok: true; serverEntry: string }
   | { ok: false; reason: "not-installed" | "not-built" };
 
-function resolveWeb(): WebResolution {
+export function resolveWeb(): WebResolution {
   // Production: embedded in CLI dist at build time
   const embedded = join(import.meta.dir, "web", "server.ts");
   if (existsSync(embedded)) {
