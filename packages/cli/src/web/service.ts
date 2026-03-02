@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getGrindHome } from "@grindxp/core";
 
@@ -87,10 +87,17 @@ async function waitForWebReady(port: number, timeoutMs: number): Promise<boolean
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
+function getWebStderrLogPath(): string {
+  return join(getGrindHome(), "web-stderr.log");
+}
+
 export async function startManagedWeb(serverEntry: string): Promise<WebProcessState> {
+  const stderrPath = getWebStderrLogPath();
+  mkdirSync(getGrindHome(), { recursive: true });
+
   const child = Bun.spawn(["bun", serverEntry], {
     env: { ...process.env, PORT: String(WEB_PORT) },
-    stdio: ["ignore", "ignore", "ignore"],
+    stdio: ["ignore", "ignore", Bun.file(stderrPath)],
     detached: true,
   });
   child.unref();
@@ -106,7 +113,8 @@ export async function startManagedWeb(serverEntry: string): Promise<WebProcessSt
   const ready = await waitForWebReady(WEB_PORT, 30_000);
   if (!ready && !isProcessAlive(state.pid)) {
     clearWebProcessState();
-    throw new Error("Web app failed to start (process exited early).");
+    const log = existsSync(stderrPath) ? readFileSync(stderrPath, "utf-8").trim().slice(-2000) : "";
+    throw new Error(`Web app failed to start (process exited early).${log ? `\n\n${log}` : ""}`);
   }
 
   return state;
