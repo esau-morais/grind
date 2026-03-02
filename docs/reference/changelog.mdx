@@ -7,35 +7,67 @@ read_when:
   - "User is upgrading and wants to check for breaking changes"
 ---
 
-## v0.1.14 - 2026-03-02
+## 2026-03-02
 
-
+### v0.1.15
 
 ## What's Changed
+
+### Added
+
+- feat: add channel-agnostic multi-channel auto-responder by @esau-morais in https://github.com/esau-morais/grind/pull/33
+
 ### Fixed
-* fix(web): fix web server startup for global bun install by @esau-morais in https://github.com/esau-morais/grind/pull/30
-* fix: install script and uninstall stale binary detection by @esau-morais in https://github.com/esau-morais/grind/pull/31
-* fix(setup): route OpenAI OAuth callback through web server for remote users by @esau-morais in https://github.com/esau-morais/grind/pull/32
+
+- fix(web): fix web server startup for global bun install by @esau-morais in https://github.com/esau-morais/grind/pull/30
+- fix: install script and uninstall stale binary detection by @esau-morais in https://github.com/esau-morais/grind/pull/31
+- fix(setup): route OpenAI OAuth callback through web server for remote users by @esau-morais in https://github.com/esau-morais/grind/pull/32
+- fix(setup): proxy OAuth callback on port 1455 to web server by @esau-morais in https://github.com/esau-morais/grind/pull/35
+- fix(install): hoist DEST assignments before early-exit check by @esau-morais in https://github.com/esau-morais/grind/pull/36
+- fix(changelog): deduplicate same-day date headings and run formatter by @esau-morais in https://github.com/esau-morais/grind/pull/37
+
 ### Other Changes
-* docs: update changelog for v0.1.13 by @github-actions[bot] in https://github.com/esau-morais/grind/pull/29
 
+- docs: update changelog for v0.1.13 by @github-actions[bot] in https://github.com/esau-morais/grind/pull/29
+- docs: update changelog for v0.1.14 by @github-actions[bot] in https://github.com/esau-morais/grind/pull/34
 
-**Full Changelog**: https://github.com/esau-morais/grind/compare/v0.1.13...v0.1.14
+**Full Changelog**: https://github.com/esau-morais/grind/compare/v0.1.13...v0.1.15
+
+## v0.1.14 - 2026-03-02
+
+## What's Changed
+
+### Fixed
+
+- fix(web): fix web server startup for global bun install by @esau-morais in https://github.com/esau-morais/grind/pull/30
+- fix: install script and uninstall stale binary detection by @esau-morais in https://github.com/esau-morais/grind/pull/31
+- fix(setup): route OpenAI OAuth callback through web server for remote users by @esau-morais in https://github.com/esau-morais/grind/pull/32
+
+### Other Changes
+
+- docs: update changelog for v0.1.13 by @github-actions[bot] in https://github.com/esau-morais/grind/pull/29
+  **Full Changelog**: https://github.com/esau-morais/grind/compare/v0.1.13...v0.1.14
 
 ## v0.1.13 - 2026-03-01
 
 ## What's Changed
+
 ### Added
-* feat(gateway): forward image attachments from integration channels to AI by @esau-morais in https://github.com/esau-morais/grind/pull/28
+
+- feat(gateway): forward image attachments from integration channels to AI by @esau-morais in https://github.com/esau-morais/grind/pull/28
+
 ### Fixed
-* fix(landing): prevent "Text file busy" when reinstalling over a running binary by @esau-morais in https://github.com/esau-morais/grind/pull/23
-* fix(tui): prevent DB timeout cascade in chat screen polling loop by @esau-morais in https://github.com/esau-morais/grind/pull/24
-* fix(web): serve static client assets from CLI web command by @esau-morais in https://github.com/esau-morais/grind/pull/25
-* fix(tui): remove Esc as exit trigger and suppress exit stderr message by @esau-morais in https://github.com/esau-morais/grind/pull/26
-* fix(web): render tool-result messages as compact cards in chat history by @esau-morais in https://github.com/esau-morais/grind/pull/27
+
+- fix(landing): prevent "Text file busy" when reinstalling over a running binary by @esau-morais in https://github.com/esau-morais/grind/pull/23
+- fix(tui): prevent DB timeout cascade in chat screen polling loop by @esau-morais in https://github.com/esau-morais/grind/pull/24
+- fix(web): serve static client assets from CLI web command by @esau-morais in https://github.com/esau-morais/grind/pull/25
+- fix(tui): remove Esc as exit trigger and suppress exit stderr message by @esau-morais in https://github.com/esau-morais/grind/pull/26
+- fix(web): render tool-result messages as compact cards in chat history by @esau-morais in https://github.com/esau-morais/grind/pull/27
+
 ### Other Changes
-* docs: update changelog for v0.1.12 by @github-actions[bot] in https://github.com/esau-morais/grind/pull/22
-**Full Changelog**: https://github.com/esau-morais/grind/compare/v0.1.12...v0.1.13
+
+- docs: update changelog for v0.1.12 by @github-actions[bot] in https://github.com/esau-morais/grind/pull/22
+  **Full Changelog**: https://github.com/esau-morais/grind/compare/v0.1.12...v0.1.13
 
 ## v0.1.11 - 2026-02-27
 
