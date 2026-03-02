@@ -24,17 +24,23 @@ export interface GatewayResolvedConfig {
   port: number;
   token: string;
   telegramBotToken?: string;
+  telegramDefaultChatId?: string;
   whatsAppMode?: "qr-link" | "cloud-api";
   whatsAppLinkedAt?: number;
   whatsAppPairingMethod?: "qr" | "pairing-code";
   whatsAppPairingPhone?: string;
+  whatsAppDefaultChatId?: string;
   telegramWebhookSecret?: string;
   telegramWebhookPath?: string;
+  discordBotToken?: string;
+  discordDefaultChatId?: string;
   discordPublicKey?: string;
   discordWebhookPath?: string;
   whatsAppWebhookPath?: string;
   whatsAppVerifyToken?: string;
   whatsAppAppSecret?: string;
+  whatsAppAccessToken?: string;
+  whatsAppPhoneNumberId?: string;
 }
 
 export interface GatewayStartOptions {
@@ -42,17 +48,23 @@ export interface GatewayStartOptions {
   port?: number;
   token?: string;
   telegramBotToken?: string;
+  telegramDefaultChatId?: string;
   whatsAppMode?: "qr-link" | "cloud-api";
   whatsAppLinkedAt?: number;
   whatsAppPairingMethod?: "qr" | "pairing-code";
   whatsAppPairingPhone?: string;
+  whatsAppDefaultChatId?: string;
   telegramWebhookSecret?: string;
   telegramWebhookPath?: string;
+  discordBotToken?: string;
+  discordDefaultChatId?: string;
   discordPublicKey?: string;
   discordWebhookPath?: string;
   whatsAppWebhookPath?: string;
   whatsAppVerifyToken?: string;
   whatsAppAppSecret?: string;
+  whatsAppAccessToken?: string;
+  whatsAppPhoneNumberId?: string;
 }
 
 export interface GatewayStartResult {
@@ -83,72 +95,40 @@ export function resolveGatewayConfig(
   const token = overrides?.token ?? base?.token;
   if (!token) return null;
 
+  const pick = <K extends string>(
+    key: K,
+    overrideVal: string | number | undefined,
+    baseVal: string | number | undefined,
+  ): Record<K, string | number> | Record<never, never> =>
+    overrideVal !== undefined
+      ? ({ [key]: overrideVal } as Record<K, string | number>)
+      : baseVal !== undefined
+        ? ({ [key]: baseVal } as Record<K, string | number>)
+        : {};
+
   return {
     host,
     port,
     token,
-    ...(overrides?.whatsAppMode
-      ? { whatsAppMode: overrides.whatsAppMode }
-      : base?.whatsAppMode
-        ? { whatsAppMode: base.whatsAppMode }
-        : {}),
-    ...(overrides?.whatsAppLinkedAt
-      ? { whatsAppLinkedAt: overrides.whatsAppLinkedAt }
-      : base?.whatsAppLinkedAt
-        ? { whatsAppLinkedAt: base.whatsAppLinkedAt }
-        : {}),
-    ...(overrides?.whatsAppPairingMethod
-      ? { whatsAppPairingMethod: overrides.whatsAppPairingMethod }
-      : base?.whatsAppPairingMethod
-        ? { whatsAppPairingMethod: base.whatsAppPairingMethod }
-        : {}),
-    ...(overrides?.whatsAppPairingPhone
-      ? { whatsAppPairingPhone: overrides.whatsAppPairingPhone }
-      : base?.whatsAppPairingPhone
-        ? { whatsAppPairingPhone: base.whatsAppPairingPhone }
-        : {}),
-    ...(overrides?.telegramBotToken
-      ? { telegramBotToken: overrides.telegramBotToken }
-      : base?.telegramBotToken
-        ? { telegramBotToken: base.telegramBotToken }
-        : {}),
-    ...(overrides?.telegramWebhookSecret
-      ? { telegramWebhookSecret: overrides.telegramWebhookSecret }
-      : base?.telegramWebhookSecret
-        ? { telegramWebhookSecret: base.telegramWebhookSecret }
-        : {}),
-    ...(overrides?.telegramWebhookPath
-      ? { telegramWebhookPath: overrides.telegramWebhookPath }
-      : base?.telegramWebhookPath
-        ? { telegramWebhookPath: base.telegramWebhookPath }
-        : {}),
-    ...(overrides?.discordPublicKey
-      ? { discordPublicKey: overrides.discordPublicKey }
-      : base?.discordPublicKey
-        ? { discordPublicKey: base.discordPublicKey }
-        : {}),
-    ...(overrides?.discordWebhookPath
-      ? { discordWebhookPath: overrides.discordWebhookPath }
-      : base?.discordWebhookPath
-        ? { discordWebhookPath: base.discordWebhookPath }
-        : {}),
-
-    ...(overrides?.whatsAppWebhookPath
-      ? { whatsAppWebhookPath: overrides.whatsAppWebhookPath }
-      : base?.whatsAppWebhookPath
-        ? { whatsAppWebhookPath: base.whatsAppWebhookPath }
-        : {}),
-    ...(overrides?.whatsAppVerifyToken
-      ? { whatsAppVerifyToken: overrides.whatsAppVerifyToken }
-      : base?.whatsAppVerifyToken
-        ? { whatsAppVerifyToken: base.whatsAppVerifyToken }
-        : {}),
-    ...(overrides?.whatsAppAppSecret
-      ? { whatsAppAppSecret: overrides.whatsAppAppSecret }
-      : base?.whatsAppAppSecret
-        ? { whatsAppAppSecret: base.whatsAppAppSecret }
-        : {}),
-  };
+    ...pick("telegramBotToken", overrides?.telegramBotToken, base?.telegramBotToken),
+    ...pick("telegramDefaultChatId", overrides?.telegramDefaultChatId, base?.telegramDefaultChatId),
+    ...pick("telegramWebhookSecret", overrides?.telegramWebhookSecret, base?.telegramWebhookSecret),
+    ...pick("telegramWebhookPath", overrides?.telegramWebhookPath, base?.telegramWebhookPath),
+    ...pick("discordBotToken", overrides?.discordBotToken, base?.discordBotToken),
+    ...pick("discordDefaultChatId", overrides?.discordDefaultChatId, base?.discordDefaultChatId),
+    ...pick("discordPublicKey", overrides?.discordPublicKey, base?.discordPublicKey),
+    ...pick("discordWebhookPath", overrides?.discordWebhookPath, base?.discordWebhookPath),
+    ...pick("whatsAppMode", overrides?.whatsAppMode, base?.whatsAppMode),
+    ...pick("whatsAppLinkedAt", overrides?.whatsAppLinkedAt, base?.whatsAppLinkedAt),
+    ...pick("whatsAppPairingMethod", overrides?.whatsAppPairingMethod, base?.whatsAppPairingMethod),
+    ...pick("whatsAppPairingPhone", overrides?.whatsAppPairingPhone, base?.whatsAppPairingPhone),
+    ...pick("whatsAppDefaultChatId", overrides?.whatsAppDefaultChatId, base?.whatsAppDefaultChatId),
+    ...pick("whatsAppWebhookPath", overrides?.whatsAppWebhookPath, base?.whatsAppWebhookPath),
+    ...pick("whatsAppVerifyToken", overrides?.whatsAppVerifyToken, base?.whatsAppVerifyToken),
+    ...pick("whatsAppAppSecret", overrides?.whatsAppAppSecret, base?.whatsAppAppSecret),
+    ...pick("whatsAppAccessToken", overrides?.whatsAppAccessToken, base?.whatsAppAccessToken),
+    ...pick("whatsAppPhoneNumberId", overrides?.whatsAppPhoneNumberId, base?.whatsAppPhoneNumberId),
+  } as GatewayResolvedConfig;
 }
 
 export async function startManagedGateway(
@@ -391,20 +371,23 @@ async function startDetachedGateway(
     resolved.token,
   ];
 
+  if (resolved.telegramBotToken) {
+    args.push("--telegram-bot-token", resolved.telegramBotToken);
+  }
   if (resolved.telegramWebhookSecret) {
     args.push("--telegram-secret", resolved.telegramWebhookSecret);
   }
   if (resolved.telegramWebhookPath) {
     args.push("--telegram-path", resolved.telegramWebhookPath);
   }
+  if (resolved.discordBotToken) {
+    args.push("--discord-bot-token", resolved.discordBotToken);
+  }
   if (resolved.discordPublicKey) {
     args.push("--discord-public-key", resolved.discordPublicKey);
   }
   if (resolved.discordWebhookPath) {
     args.push("--discord-path", resolved.discordWebhookPath);
-  }
-  if (resolved.telegramBotToken) {
-    args.push("--telegram-bot-token", resolved.telegramBotToken);
   }
   if (resolved.whatsAppWebhookPath) {
     args.push("--whatsapp-path", resolved.whatsAppWebhookPath);

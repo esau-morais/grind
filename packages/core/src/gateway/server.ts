@@ -20,10 +20,12 @@ export interface GatewayServerOptions {
   port?: number;
   telegramWebhookSecret?: string;
   telegramWebhookPath?: string;
-  onTelegramEvent?: (event: {
+  onChannelEvent?: (event: {
     normalized: NormalizedGatewayEvent;
     tick: Awaited<ReturnType<typeof runForgeTick>>;
   }) => Promise<void> | void;
+  onSendMessage?: (channel: string, chatId: string, text: string) => Promise<void>;
+  onWarn?: (message: string) => void;
   discordPublicKey?: string;
   discordWebhookPath?: string;
   whatsAppWebhookPath?: string;
@@ -67,6 +69,15 @@ export function startGatewayServer(options: GatewayServerOptions): GatewayServer
         try {
           const normalized = normalizeInboundWebhook(payload.value, options.userId);
           const result = await ingestNormalizedEvent(options, normalized);
+          queueMicrotask(async () => {
+            try {
+              await options.onChannelEvent?.({ normalized, tick: result.tick });
+            } catch (err) {
+              options.onWarn?.(
+                `onChannelEvent (inbound) error: ${err instanceof Error ? err.message : String(err)}`,
+              );
+            }
+          });
           return Response.json({ ok: true, signalId: result.signalId, tick: result.tick });
         } catch (error) {
           return jsonError(400, error instanceof Error ? error.message : String(error));
@@ -87,15 +98,15 @@ export function startGatewayServer(options: GatewayServerOptions): GatewayServer
           const normalized = normalizeTelegramWebhookUpdate(payload.value, options.userId);
           const result = await ingestNormalizedEvent(options, normalized);
 
-          if (options.onTelegramEvent) {
-            queueMicrotask(async () => {
-              try {
-                await options.onTelegramEvent?.({ normalized, tick: result.tick });
-              } catch {
-                // keep webhook endpoint stable even if external callback fails
-              }
-            });
-          }
+          queueMicrotask(async () => {
+            try {
+              await options.onChannelEvent?.({ normalized, tick: result.tick });
+            } catch (err) {
+              options.onWarn?.(
+                `onChannelEvent error: ${err instanceof Error ? err.message : String(err)}`,
+              );
+            }
+          });
 
           return Response.json({ ok: true, signalId: result.signalId, tick: result.tick });
         } catch (error) {
@@ -146,9 +157,18 @@ export function startGatewayServer(options: GatewayServerOptions): GatewayServer
         queueMicrotask(async () => {
           try {
             const normalized = normalizeDiscordInteraction(parsed.value, options.userId);
-            await ingestNormalizedEvent(options, normalized);
-          } catch {
-            // intentionally swallowed to preserve interaction ACK timing
+            const result = await ingestNormalizedEvent(options, normalized);
+            try {
+              await options.onChannelEvent?.({ normalized, tick: result.tick });
+            } catch (err) {
+              options.onWarn?.(
+                `onChannelEvent (discord) error: ${err instanceof Error ? err.message : String(err)}`,
+              );
+            }
+          } catch (err) {
+            options.onWarn?.(
+              `Discord interaction ingest error: ${err instanceof Error ? err.message : String(err)}`,
+            );
           }
         });
 
@@ -212,10 +232,60 @@ export function startGatewayServer(options: GatewayServerOptions): GatewayServer
         const normalizedEvents = [...messageEvents, ...statusEvents];
 
         for (const normalized of normalizedEvents) {
-          await ingestNormalizedEvent(options, normalized);
+          const result = await ingestNormalizedEvent(options, normalized);
+          queueMicrotask(async () => {
+            try {
+              await options.onChannelEvent?.({ normalized, tick: result.tick });
+            } catch (err) {
+              options.onWarn?.(
+                `onChannelEvent (whatsapp) error: ${err instanceof Error ? err.message : String(err)}`,
+              );
+            }
+          });
         }
 
         return Response.json({ ok: true, events: normalizedEvents.length });
+      }
+
+      if (request.method === "POST" && path.startsWith("/send/")) {
+        if (!isAuthorized(request, options.token)) {
+          return jsonError(401, "Unauthorized");
+        }
+
+        const channel = path.slice("/send/".length);
+        if (!channel) {
+          return jsonError(400, "Channel is required in path: /send/<channel>");
+        }
+
+        if (!options.onSendMessage) {
+          return jsonError(503, "Outbound messaging is not configured on this gateway.");
+        }
+
+        const body = await safeJson(request);
+        if (!body.ok) {
+          return jsonError(400, "Invalid JSON body");
+        }
+
+        const bodyRecord = body.value as Record<string, unknown>;
+        const chatId =
+          typeof bodyRecord.chatId === "string" && bodyRecord.chatId.trim()
+            ? bodyRecord.chatId.trim()
+            : null;
+        const text =
+          typeof bodyRecord.text === "string" && bodyRecord.text.trim()
+            ? bodyRecord.text.trim()
+            : null;
+
+        if (!chatId || !text) {
+          return jsonError(400, "Body must include non-empty chatId and text");
+        }
+
+        try {
+          await options.onSendMessage(channel, chatId, text);
+          return Response.json({ ok: true, channel, chatId });
+        } catch (error) {
+          return jsonError(500, error instanceof Error ? error.message : String(error));
+        }
       }
 
       return jsonError(404, "Not found");

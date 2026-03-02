@@ -436,6 +436,41 @@ async function executeSendNotification(plan: ForgeActionPlan): Promise<ForgeActi
     };
   }
 
+  if (channel === "discord") {
+    const botToken =
+      asString(plan.actionConfig.botToken) ?? asString(process.env.GRIND_DISCORD_BOT_TOKEN);
+    const channelId = asString(plan.actionConfig.channelId) ?? asString(plan.actionConfig.chatId);
+
+    if (!botToken || !channelId) {
+      return {
+        status: "skipped",
+        actionPayload: { channel, delivered: false },
+        error:
+          "discord notification requires actionConfig.botToken (or GRIND_DISCORD_BOT_TOKEN) and actionConfig.channelId.",
+      };
+    }
+
+    const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bot ${botToken}`,
+      },
+      body: JSON.stringify({ content: message }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return {
+        status: "failed",
+        actionPayload: { channel, delivered: false, channelId },
+        error: `discord send failed: ${response.status} ${errorText}`,
+      };
+    }
+
+    return { status: "success", actionPayload: { channel, delivered: true, channelId } };
+  }
+
   if (channel === "whatsapp") {
     const phoneNumberId = asString(plan.actionConfig.phoneNumberId);
     const recipient = asString(plan.actionConfig.to) ?? asString(plan.actionConfig.recipientId);
