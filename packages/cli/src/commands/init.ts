@@ -21,6 +21,7 @@ import {
 import { createUser, upsertCompanion } from "@grindxp/core/vault";
 import { showTitle } from "../brand";
 import { ensureGatewayDefaults, runIntegrationWizard } from "./integrations";
+import { ensureWebServer, startOAuthProxy } from "./setup";
 import { startManagedGateway } from "../gateway/service";
 import { spinner } from "../spinner";
 
@@ -160,6 +161,12 @@ export async function initCommand(): Promise<void> {
           process.exit(1);
         }
 
+        let proxy: ReturnType<typeof startOAuthProxy> | undefined;
+        if (oauthConfig.method === "callback") {
+          await ensureWebServer();
+          proxy = startOAuthProxy(oauthConfig);
+        }
+
         const flow = startOAuthFlow(provider, oauthConfig);
         const completion = flow.method === "callback" ? flow.complete() : null;
 
@@ -208,6 +215,8 @@ export async function initCommand(): Promise<void> {
             spin2.error("Authentication failed.");
             p.log.error(err instanceof Error ? err.message : String(err));
             process.exit(1);
+          } finally {
+            proxy?.stop();
           }
         }
       }
