@@ -33,6 +33,13 @@ jobs:
           echo "$BODY" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
       - name: Prepend release notes to changelog.mdx
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
@@ -43,27 +50,43 @@ jobs:
           VERSION="${RELEASE_TAG#v}"
           DATE=$(TZ=America/Sao_Paulo date +%Y-%m-%d)
           FILE="docs/reference/changelog.mdx"
-          HEADING="## v${VERSION}"
+          VERSION_HEADING="### v${VERSION}"
+          DATE_HEADING="## ${DATE}"
 
           # Skip if this version already exists (idempotent re-runs)
-          if grep -qF "${HEADING}" "${FILE}"; then
+          if grep -qF "${VERSION_HEADING}" "${FILE}"; then
             echo "Version ${VERSION} already in changelog, skipping."
             exit 0
           fi
 
-          NEW_SECTION="${HEADING} - ${DATE}"$'\n\n'"${RELEASE_BODY}"$'\n'
+          VERSION_SECTION="${VERSION_HEADING}"$'\n\n'"${RELEASE_BODY}"$'\n'
 
           # Find the line number of the closing --- of the frontmatter
           FRONTMATTER_END=$(awk '/^---/{count++; if(count==2){print NR; exit}}' "${FILE}")
 
-          # Insert the new section after the frontmatter blank line
-          {
-            head -n "${FRONTMATTER_END}" "${FILE}"
-            echo ""
-            echo "${NEW_SECTION}"
-            tail -n +"$((FRONTMATTER_END + 1))" "${FILE}" | sed '/^$/{ N; /^\n$/d; }' | tail -n +2
-          } > "${FILE}.tmp"
+          if grep -qF "${DATE_HEADING}" "${FILE}"; then
+            # Date heading already exists — insert version section immediately after it
+            DATE_LINE=$(grep -nF "${DATE_HEADING}" "${FILE}" | head -1 | cut -d: -f1)
+            {
+              head -n "${DATE_LINE}" "${FILE}"
+              echo ""
+              echo "${VERSION_SECTION}"
+              tail -n +"$((DATE_LINE + 1))" "${FILE}"
+            } > "${FILE}.tmp"
+          else
+            # New date — insert a fresh date heading + version section after frontmatter
+            NEW_BLOCK="${DATE_HEADING}"$'\n\n'"${VERSION_SECTION}"
+            {
+              head -n "${FRONTMATTER_END}" "${FILE}"
+              echo ""
+              echo "${NEW_BLOCK}"
+              tail -n +"$((FRONTMATTER_END + 1))" "${FILE}" | sed '/^$/{ N; /^\n$/d; }' | tail -n +2
+            } > "${FILE}.tmp"
+          fi
           mv "${FILE}.tmp" "${FILE}"
+
+      - name: Format changelog
+        run: bun run format docs/reference/changelog.mdx
 
       - name: Open changelog PR
         env:
