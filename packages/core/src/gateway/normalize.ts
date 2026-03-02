@@ -22,6 +22,8 @@ export interface InboundMedia {
   url?: string;
   /** MIME type if known from the webhook payload. */
   mime?: string;
+  /** Pre-fetched base64 content (e.g. forwarded by the Baileys runner). */
+  base64?: string;
 }
 
 interface WhatsAppNormalizeOptions {

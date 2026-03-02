@@ -8,6 +8,7 @@ export interface WhatsAppWebListenerOptions {
 }
 
 export interface WhatsAppWebListener {
+  sendPort: Promise<number | null>;
   stop: () => Promise<void>;
 }
 
@@ -21,13 +22,54 @@ export function startWhatsAppWebListener(options: WhatsAppWebListenerOptions): W
     token: options.token,
   });
 
+  let resolveSendPort: (port: number | null) => void = () => {};
+  const sendPort = new Promise<number | null>((resolve) => {
+    resolveSendPort = resolve;
+  });
+
   const child = Bun.spawn(["node", runnerPath, payload], {
     stdin: "ignore",
-    stdout: "inherit",
+    stdout: "pipe",
     stderr: "inherit",
   });
 
+  // Read stdout line-by-line to capture WHATSAPP_SEND_PORT=<port>
+  let portResolved = false;
+  void (async () => {
+    const reader = child.stdout.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          process.stdout.write(trimmed + "\n");
+          if (!portResolved && trimmed.startsWith("WHATSAPP_SEND_PORT=")) {
+            const portStr = trimmed.slice("WHATSAPP_SEND_PORT=".length);
+            const port = Number.parseInt(portStr, 10);
+            if (Number.isInteger(port) && port > 0) {
+              portResolved = true;
+              resolveSendPort(port);
+            }
+          }
+        }
+      }
+    } catch {
+      // reader closed
+    }
+    if (!portResolved) {
+      portResolved = true;
+      resolveSendPort(null);
+    }
+  })();
+
   return {
+    sendPort,
     stop: async () => {
       if (child.exitCode === null) {
         child.kill("SIGTERM");

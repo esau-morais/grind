@@ -497,6 +497,49 @@ async function resolveTelegramChatId(
   };
 }
 
+function resolveChannelDefaultChatId(ctx: ToolContext, channel: string): string | null {
+  return resolveChannelDefaultChatIdFromConfig(ctx.config?.gateway, channel);
+}
+
+function resolveChannelDefaultChatIdFromConfig(
+  gateway: import("../grind-home").GatewayConfig | null | undefined,
+  channel: string,
+): string | null {
+  if (!gateway) return null;
+  if (channel === "telegram") return gateway.telegramDefaultChatId ?? null;
+  if (channel === "discord") return gateway.discordDefaultChatId ?? null;
+  if (channel === "whatsapp" || channel === "whatsapp-web")
+    return gateway.whatsAppDefaultChatId ?? null;
+  return null;
+}
+
+async function scanSignalsForChannelChatId(
+  ctx: ToolContext,
+  channel: string,
+): Promise<string | null> {
+  const rows = await ctx.db.query.signals.findMany({
+    where: and(eq(signals.userId, ctx.userId), eq(signals.source, "webhook")),
+    orderBy: [desc(signals.detectedAt)],
+    limit: 100,
+  });
+
+  for (const row of rows) {
+    const payload = row.payload as Record<string, unknown> | null;
+    if (!payload) continue;
+    const payloadChannel = typeof payload.channel === "string" ? payload.channel : null;
+    if (
+      payloadChannel !== channel &&
+      !(channel === "whatsapp" && payloadChannel === "whatsapp-web")
+    )
+      continue;
+    const chatId =
+      typeof payload.chatId === "string" && payload.chatId.trim() ? payload.chatId.trim() : null;
+    if (chatId) return chatId;
+  }
+
+  return null;
+}
+
 function persistTelegramDefaultChatId(ctx: ToolContext, chatId: string): void {
   if (!ctx.config?.gateway) return;
 
@@ -529,7 +572,13 @@ const FORGE_ACTION_TYPES = [
 ] as const;
 type ForgeSupportedActionType = (typeof FORGE_ACTION_TYPES)[number];
 
-const FORGE_NOTIFICATION_CHANNELS = ["console", "telegram", "webhook", "whatsapp"] as const;
+const FORGE_NOTIFICATION_CHANNELS = [
+  "console",
+  "telegram",
+  "discord",
+  "webhook",
+  "whatsapp",
+] as const;
 type ForgeNotificationChannel = (typeof FORGE_NOTIFICATION_CHANNELS)[number];
 
 const FORGE_WEBHOOK_CHANNEL_TAGS = ["webhook", "telegram", "discord", "whatsapp"] as const;
@@ -882,6 +931,28 @@ async function normalizeForgeRuleDefinition(
         }
       }
 
+      if (channel === "discord") {
+        const botToken =
+          asNonEmptyString(actionConfig.botToken) ??
+          asNonEmptyString(ctx.config?.gateway?.discordBotToken) ??
+          asNonEmptyString(process.env.GRIND_DISCORD_BOT_TOKEN);
+        const channelId =
+          asNonEmptyString(actionConfig.channelId) ??
+          asNonEmptyString(actionConfig.chatId) ??
+          asNonEmptyString(ctx.config?.gateway?.discordDefaultChatId);
+        if (!botToken || !channelId) {
+          return {
+            ok: false,
+            error:
+              "discord notifications require a bot token (gateway.discordBotToken or GRIND_DISCORD_BOT_TOKEN) and actionConfig.channelId.",
+          };
+        }
+        actionConfig.channelId = channelId;
+        if (!asNonEmptyString(actionConfig.botToken)) {
+          actionConfig.botToken = botToken;
+        }
+      }
+
       if (channel === "webhook") {
         const url = asNonEmptyString(actionConfig.url) ?? asNonEmptyString(actionConfig.webhookUrl);
         if (!url || !isValidHttpUrl(url)) {
@@ -1006,15 +1077,22 @@ export function createGrindTools(ctx: ToolContext) {
             gatewayEnabled: gateway?.enabled ?? false,
             telegram: {
               connected: Boolean(gateway?.telegramBotToken),
+              defaultChatId: gateway?.telegramDefaultChatId ?? null,
               webhookPath: gateway?.telegramWebhookPath ?? "/hooks/telegram",
             },
             discord: {
-              configured: Boolean(gateway?.discordPublicKey),
+              connected: Boolean(gateway?.discordBotToken),
+              interactionsEndpoint: Boolean(gateway?.discordPublicKey),
+              defaultChatId: gateway?.discordDefaultChatId ?? null,
               webhookPath: gateway?.discordWebhookPath ?? "/hooks/discord",
             },
             whatsApp: {
               mode: whatsAppMode,
               linked: Boolean(gateway?.whatsAppLinkedAt),
+              canReply:
+                Boolean(gateway?.whatsAppLinkedAt) ||
+                Boolean(gateway?.whatsAppAccessToken && gateway?.whatsAppPhoneNumberId),
+              defaultChatId: gateway?.whatsAppDefaultChatId ?? null,
               cloudApiConfigured: Boolean(
                 gateway?.whatsAppAccessToken && gateway?.whatsAppPhoneNumberId,
               ),
@@ -1441,69 +1519,134 @@ export function createGrindTools(ctx: ToolContext) {
       },
     }),
 
-    send_telegram_message: tool({
+    send_channel_message: tool({
       description:
-        "Send a Telegram message using the configured bot token. Use this for connection tests or proactive notifications when the user asks. The chat ID is resolved automatically — do not ask the user for it.",
+        "Send a message to the user on a specific channel (telegram, discord, or whatsapp). Chat ID is auto-resolved from config or recent activity — do not ask the user for it. Use this for proactive notifications or connection tests.",
       inputSchema: z.object({
-        text: z.string().min(1).max(4000).describe("Message text to send"),
+        channel: z
+          .enum(["telegram", "discord", "whatsapp"])
+          .describe("Channel to send on: telegram, discord, or whatsapp."),
+        text: z.string().min(1).max(4000).describe("Message text to send."),
         chatId: z
           .string()
           .optional()
-          .describe("Telegram chat ID. Omit to auto-resolve from config or recent activity."),
+          .describe("Chat/channel ID. Omit to auto-resolve from config or recent activity."),
       }),
-      execute: async ({ text, chatId }) => {
-        const token =
-          ctx.config?.gateway?.telegramBotToken ??
-          process.env.GRIND_TELEGRAM_BOT_TOKEN ??
-          undefined;
+      execute: async ({ channel, text, chatId }) => {
+        if (channel === "telegram") {
+          const token =
+            ctx.config?.gateway?.telegramBotToken ??
+            process.env.GRIND_TELEGRAM_BOT_TOKEN ??
+            undefined;
 
-        if (!token) {
+          if (!token) {
+            return {
+              ok: false,
+              error:
+                "Telegram bot token is not configured. Run `grindxp integrations setup telegram`.",
+            };
+          }
+
+          let targetChatId = chatId;
+          if (!targetChatId) {
+            const resolved = await resolveTelegramChatId(ctx, token);
+            if (!resolved.chatId) {
+              return {
+                ok: false,
+                error: resolved.detail ?? "Could not resolve a Telegram chat ID automatically.",
+              };
+            }
+            targetChatId = resolved.chatId;
+          }
+
+          const htmlText = markdownToTelegramHtml(text);
+          const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ chat_id: targetChatId, text: htmlText, parse_mode: "HTML" }),
+          });
+
+          const raw = await response.text();
+          if (!response.ok) {
+            let errDetail = "";
+            try {
+              const parsed = JSON.parse(raw) as Record<string, unknown>;
+              errDetail =
+                typeof parsed.description === "string"
+                  ? ` — ${parsed.description}`
+                  : ` (raw: ${raw})`;
+            } catch {
+              errDetail = ` (raw: ${raw})`;
+            }
+            return {
+              ok: false,
+              error: `Telegram send failed (HTTP ${response.status})${errDetail}`,
+            };
+          }
+
+          return { ok: true, channel: "telegram", chatId: targetChatId };
+        }
+
+        // Discord and WhatsApp route through the running gateway process.
+        const gateway = ctx.config?.gateway;
+        if (!gateway?.enabled) {
           return {
             ok: false,
-            error:
-              "Telegram bot token is not configured. Run `grindxp integrations setup telegram`.",
+            error: "Gateway is not enabled. Run `grindxp gateway start`.",
           };
         }
 
-        let targetChatId = chatId ?? undefined;
-
+        let targetChatId = chatId;
         if (!targetChatId) {
-          const resolved = await resolveTelegramChatId(ctx, token);
-          if (!resolved.chatId) {
-            return {
-              ok: false,
-              error: resolved.detail ?? "Could not resolve a Telegram chat ID automatically.",
-            };
+          const resolved = resolveChannelDefaultChatId(ctx, channel);
+          if (!resolved) {
+            // Re-read from disk — gateway may have auto-persisted it after first contact.
+            const freshConfig = readGrindConfig();
+            const fromDisk = resolveChannelDefaultChatIdFromConfig(freshConfig?.gateway, channel);
+            if (!fromDisk) {
+              // Scan recent signals for a chatId from this channel.
+              const fromSignal = await scanSignalsForChannelChatId(ctx, channel);
+              if (!fromSignal) {
+                return {
+                  ok: false,
+                  error: `Could not resolve a ${channel} chat ID. Send a message on ${channel} first so the bot can learn your chat ID.`,
+                };
+              }
+              targetChatId = fromSignal;
+            } else {
+              targetChatId = fromDisk;
+            }
+          } else {
+            targetChatId = resolved;
           }
-          targetChatId = resolved.chatId;
         }
 
-        const htmlText = markdownToTelegramHtml(text);
-        const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        const gatewayUrl = `http://${gateway.host ?? "127.0.0.1"}:${gateway.port ?? 5174}`;
+        const response = await fetch(`${gatewayUrl}/send/${channel}`, {
           method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ chat_id: targetChatId, text: htmlText, parse_mode: "HTML" }),
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${gateway.token}`,
+          },
+          body: JSON.stringify({ chatId: targetChatId, text }),
         });
 
         const raw = await response.text();
         if (!response.ok) {
-          let errDetail = "";
+          let errDetail = raw;
           try {
             const parsed = JSON.parse(raw) as Record<string, unknown>;
-            errDetail =
-              typeof parsed.description === "string"
-                ? ` — ${parsed.description}`
-                : ` (raw: ${raw})`;
+            if (typeof parsed.error === "string") errDetail = parsed.error;
           } catch {
-            errDetail = ` (raw: ${raw})`;
+            // keep raw
           }
           return {
             ok: false,
-            error: `Telegram send failed (HTTP ${response.status})${errDetail}`,
+            error: `Gateway send failed (HTTP ${response.status}): ${errDetail}`,
           };
         }
 
-        return { ok: true, channel: "telegram", chatId: targetChatId };
+        return { ok: true, channel, chatId: targetChatId };
       },
     }),
 
@@ -1665,7 +1808,7 @@ export function createGrindTools(ctx: ToolContext) {
           .record(z.string(), z.unknown())
           .describe(
             "run-script: { script: '<REQUIRED: shell command>' [, timeout: <ms, default 30000>] [, workdir: '<path, supports ~>'] }. " +
-              "send-notification: { channel: 'telegram|console|webhook|whatsapp', message: '<static text>' | script: '<shell command, stdout becomes message>' }. " +
+              "send-notification: { channel: 'telegram|discord|console|webhook|whatsapp', message: '<static text>' | script: '<shell command, stdout becomes message>'. discord requires botToken+channelId. }. " +
               "queue-quest: { questId: '<REQUIRED>' }. " +
               "log-to-vault: { activityType: 'workout|study|coding|music|cooking|reading|meditation|other' (REQUIRED), durationMinutes: <int> (REQUIRED) [, difficulty: 'easy|medium|hard|epic'] [, title: '<string>'] }.",
           ),
@@ -1746,7 +1889,7 @@ export function createGrindTools(ctx: ToolContext) {
             .optional()
             .describe(
               "run-script: { script: '<REQUIRED: shell command>' [, timeout: <ms>] [, workdir: '<path>'] }. " +
-                "send-notification: { channel: 'telegram|console|webhook|whatsapp', message: '<text>' | script: '<shell cmd>' }. " +
+                "send-notification: { channel: 'telegram|discord|console|webhook|whatsapp', message: '<text>' | script: '<shell cmd>' }. " +
                 "queue-quest: { questId: '<REQUIRED>' }. " +
                 "log-to-vault: { activityType: '...' (REQUIRED), durationMinutes: <int> (REQUIRED) }.",
             ),
