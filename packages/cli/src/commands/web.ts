@@ -157,7 +157,7 @@ type WebResolution =
 
 function resolveWeb(): WebResolution {
   // Production: embedded in CLI dist at build time
-  const embedded = join(import.meta.dir, "web", "server", "server.js");
+  const embedded = join(import.meta.dir, "web", "server.ts");
   if (existsSync(embedded)) {
     return { ok: true, serverEntry: embedded };
   }
