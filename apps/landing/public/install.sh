@@ -179,11 +179,10 @@ echo ""
 echo "grindxp v${GRIND_VERSION} installed to ${DEST}"
 echo "Added compatibility alias: ${ALIAS_DEST} -> ${DEST}"
 
-if ! command -v "$PRIMARY_CMD" >/dev/null 2>&1; then
-  echo ""
-  echo "Note: '$PRIMARY_CMD' is not available in this shell yet."
-  echo "Open a new terminal or run: source ~/.zshrc (or ~/.bashrc)"
-fi
+echo ""
+echo "Restart your shell or reload your rc file to use '$PRIMARY_CMD' in this session:"
+echo "  source ~/.bashrc   # bash"
+echo "  source ~/.zshrc    # zsh"
 
 if [[ "$NO_INIT" -eq 1 ]]; then
   echo ""
