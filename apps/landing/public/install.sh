@@ -8,6 +8,10 @@ NO_INIT=0
 PRIMARY_CMD="grindxp"
 ALIAS_CMD="grind"
 
+DEST="${GRIND_INSTALL_DIR}/${PRIMARY_CMD}"
+ALIAS_DEST="${GRIND_INSTALL_DIR}/${ALIAS_CMD}"
+DRIZZLE_DEST="${GRIND_INSTALL_DIR}/drizzle"
+
 for arg in "$@"; do
   case "$arg" in
     --no-init)
@@ -78,9 +82,6 @@ fi
 echo "Installing grindxp v${GRIND_VERSION} (${OS_NAME}/${ARCH_NAME})..."
 
 mkdir -p "$GRIND_INSTALL_DIR"
-DEST="${GRIND_INSTALL_DIR}/${PRIMARY_CMD}"
-ALIAS_DEST="${GRIND_INSTALL_DIR}/${ALIAS_CMD}"
-DRIZZLE_DEST="${GRIND_INSTALL_DIR}/drizzle"
 
 TMP_DIR="$(mktemp -d)"
 cleanup() {
