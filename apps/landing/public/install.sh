@@ -67,8 +67,8 @@ LEGACY_DOWNLOAD_URL="https://github.com/${REPO}/releases/download/v${GRIND_VERSI
 
 # ── Early exit if already on this version ─────────────────────────────────────
 
-if command -v "$PRIMARY_CMD" >/dev/null 2>&1; then
-  installed_version="$("$PRIMARY_CMD" --version 2>/dev/null || true)"
+if [[ -x "$DEST" ]]; then
+  installed_version="$("$DEST" --version 2>/dev/null || true)"
   if [[ "$installed_version" == *"$GRIND_VERSION"* ]]; then
     echo "grindxp v${GRIND_VERSION} is already installed."
     exit 0

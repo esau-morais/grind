@@ -1,4 +1,6 @@
-import { rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 import * as p from "@clack/prompts";
 import { spinner } from "../spinner";
@@ -16,6 +18,44 @@ export interface UninstallOptions {
   vault?: boolean;
   yes?: boolean;
   dryRun?: boolean;
+}
+
+function stripInstallerPathEntries(): void {
+  const home = homedir();
+  const rcFiles = [join(home, ".zshrc"), join(home, ".bashrc"), join(home, ".profile")];
+  const zdotdir = process.env.ZDOTDIR;
+  if (zdotdir && zdotdir !== home) {
+    rcFiles.push(join(zdotdir, ".zshrc"));
+  }
+
+  for (const rcFile of rcFiles) {
+    if (!existsSync(rcFile)) continue;
+    const original = readFileSync(rcFile, "utf8");
+    const lines = original.split("\n");
+    const kept: string[] = [];
+    let i = 0;
+    while (i < lines.length) {
+      if (
+        lines[i] === "# Added by Grind installer" &&
+        (lines[i + 1] ?? "").includes(".grind/bin")
+      ) {
+        // skip the comment line and the export PATH line
+        i += 2;
+        // also drop the blank line that preceded it if we added one
+        if (kept.length > 0 && kept[kept.length - 1] === "") {
+          kept.pop();
+        }
+      } else {
+        kept.push(lines[i]!);
+        i++;
+      }
+    }
+    const stripped = kept.join("\n");
+    if (stripped !== original) {
+      writeFileSync(rcFile, stripped, "utf8");
+      p.log.info(`Removed installer PATH entry from ${rcFile}`);
+    }
+  }
 }
 
 function buildScopes(opts: UninstallOptions): Set<UninstallScope> {
@@ -101,10 +141,13 @@ export async function uninstallCommand(opts: UninstallOptions): Promise<void> {
     }
   }
 
+  const grindInstallDir = process.env.GRIND_INSTALL_DIR ?? join(homedir(), ".grind", "bin");
+
   if (scopes.has("vault")) {
     const grindHome = getGrindHome();
     if (dryRun) {
       p.log.info(`[dry-run] remove ${grindHome}`);
+      p.log.info("[dry-run] strip installer PATH entries from shell rc files");
     } else {
       const s = spinner();
       s.start(`Removing ${grindHome}…`);
@@ -115,16 +158,20 @@ export async function uninstallCommand(opts: UninstallOptions): Promise<void> {
         s.error(`Failed to remove ${grindHome}.`);
         p.log.error(String(err));
       }
+      stripInstallerPathEntries();
     }
   }
 
-  p.outro(
-    [
-      dryRun ? "Dry run complete — no changes made." : "Done.",
+  const outroLines = [dryRun ? "Dry run complete — no changes made." : "Done."];
+  if (scopes.has("vault")) {
+    outroLines.push("CLI binary and PATH entries removed.");
+  } else {
+    outroLines.push(
       "The CLI binary is still installed. To remove it:",
-      "  Installer script:  rm -rf ~/.grind/bin/",
-      "  Bun global:        bun remove -g grind-cli",
-      "  From source:       remove your shell alias",
-    ].join("\n"),
-  );
+      `  Installer script:  rm -rf ${grindInstallDir}`,
+      "  npm:               npm remove -g grindxp",
+      "  bun:               bun remove -g grindxp",
+    );
+  }
+  p.outro(outroLines.join("\n"));
 }
