@@ -59,7 +59,7 @@ const OPENAI_OAUTH: OAuthCallbackConfig = {
   tokenUrl: "https://auth.openai.com/oauth/token",
   clientId: "app_EMoamEEZ73f0CkXaXp7hrann",
   scopes: "openid profile email offline_access",
-  callbackPort: 3000,
+  callbackPort: 1455,
   extraParams: {
     id_token_add_organizations: "true",
     codex_cli_simplified_flow: "true",

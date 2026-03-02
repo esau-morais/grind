@@ -18,6 +18,7 @@ import {
 import { getCompanionByUserId, upsertCompanion } from "@grindxp/core/vault";
 import { showTitle } from "../brand";
 import { spinner } from "../spinner";
+import type { OAuthCallbackConfig } from "@grindxp/core";
 import { resolveWeb } from "./web";
 import {
   clearWebProcessState,
@@ -186,10 +187,10 @@ export async function setupCommand(): Promise<void> {
         process.exit(1);
       }
 
-      // For callback-method OAuth (OpenAI), the web server must be running so
-      // the browser's redirect to localhost:3000/auth/callback is handled.
+      let proxy: ReturnType<typeof startOAuthProxy> | undefined;
       if (oauthConfig.method === "callback") {
         await ensureWebServer();
+        proxy = startOAuthProxy(oauthConfig);
       }
 
       const flow = startOAuthFlow(provider, oauthConfig);
@@ -246,6 +247,7 @@ export async function setupCommand(): Promise<void> {
         const spin = spinner();
         spin.start("Waiting for authentication…");
 
+        const cbPort = (oauthConfig as OAuthCallbackConfig).callbackPort;
         let oauthDone = false;
         try {
           await flow.complete();
@@ -253,26 +255,24 @@ export async function setupCommand(): Promise<void> {
           spin.stop("Authenticated successfully.");
         } catch {
           spin.stop("Automatic callback not received.");
+        } finally {
+          proxy?.stop();
         }
 
         if (!oauthDone) {
-          // Fallback: browser couldn't reach the web server (e.g. no port
-          // forwarding set up). Ask the user to copy the redirect URL from
-          // their browser's address bar — it contains the code even when the
-          // page shows "connection refused".
           p.log.warn(
             `Could not receive the OAuth callback automatically.\n` +
-              `  If you're on a remote server, make sure port ${WEB_PORT} is forwarded:\n` +
-              `  ssh -L ${WEB_PORT}:127.0.0.1:${WEB_PORT} <user@server>`,
+              `  If you're on a remote server, make sure port ${cbPort} is forwarded:\n` +
+              `  ssh -L ${cbPort}:127.0.0.1:${cbPort} <user@server>`,
           );
           p.log.info(
             `Copy the full URL from your browser's address bar after logging in\n` +
-              `  (it starts with http://${WEB_HOST}:${WEB_PORT}/auth/callback?code=…)`,
+              `  (it starts with http://localhost:${cbPort}/auth/callback?code=…)`,
           );
 
           const urlResult = await p.text({
             message: "Paste the redirect URL",
-            placeholder: `http://${WEB_HOST}:${WEB_PORT}/auth/callback?code=…&state=…`,
+            placeholder: `http://localhost:${cbPort}/auth/callback?code=…&state=…`,
             validate: (v) => {
               if (!v) return "URL is required";
               try {
@@ -372,4 +372,20 @@ async function ensureWebServer(): Promise<void> {
   } catch {
     spin.stop("Web server could not start — OAuth callback may not work automatically.");
   }
+}
+
+function startOAuthProxy(config: OAuthCallbackConfig) {
+  const server = Bun.serve({
+    port: config.callbackPort,
+    hostname: "127.0.0.1",
+    fetch(req) {
+      const url = new URL(req.url);
+      if (url.pathname !== "/auth/callback") {
+        return new Response("Not found", { status: 404 });
+      }
+      const target = `http://${WEB_HOST}:${WEB_PORT}${url.pathname}${url.search}`;
+      return fetch(target);
+    },
+  });
+  return { stop: () => server.stop() };
 }
