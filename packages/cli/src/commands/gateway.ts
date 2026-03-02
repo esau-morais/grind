@@ -268,52 +268,18 @@ export async function gatewayServeCommand(ctx: CliContext, args: string[]): Prom
       token: cfg.token,
     });
 
-    // Register whatsapp-web adapter asynchronously after the send port is discovered.
-    whatsAppWebListener.sendPort
-      .then(async (port: number | null) => {
-        if (port === null) {
-          onWarn("WhatsApp Web listener did not expose a send port — outbound disabled.");
-          // Still register a no-send adapter so inbound messages get responses.
-          const adapter = createWhatsAppWebAdapter({
-            sendMessage: async () => {
-              throw new Error("WhatsApp Web send port not available.");
-            },
-          });
-          await registerResponder("whatsapp-web", adapter, {
-            ...(cfg.whatsAppDefaultChatId
-              ? { trustedChatId: cfg.whatsAppDefaultChatId }
-              : { onFirstContact: persistWhatsAppDefaultChatId }),
-          });
-          return;
-        }
+    const sendMessage = async (jid: string, content: { text: string }) => {
+      const fn = whatsAppWebListener?.sendMessage;
+      if (!fn) throw new Error("WhatsApp Web listener is not connected.");
+      return fn(jid, content);
+    };
 
-        const sendMessage = async (jid: string, content: { text: string }) => {
-          const response = await fetch(`http://127.0.0.1:${port}/send`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ jid, content }),
-          });
-          if (!response.ok) {
-            const raw = await response.text();
-            throw new Error(`WhatsApp Web send failed (${response.status}): ${raw}`);
-          }
-          const result = (await response.json()) as { key?: { id?: string } };
-          return result;
-        };
-
-        const adapter = createWhatsAppWebAdapter({ sendMessage });
-        await registerResponder("whatsapp-web", adapter, {
-          ...(cfg.whatsAppDefaultChatId
-            ? { trustedChatId: cfg.whatsAppDefaultChatId }
-            : { onFirstContact: persistWhatsAppDefaultChatId }),
-        });
-        p.log.message(`WhatsApp Web responder: enabled (send port ${port})`);
-      })
-      .catch((err: unknown) => {
-        onWarn(
-          `WhatsApp Web send port setup failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      });
+    const adapter = createWhatsAppWebAdapter({ sendMessage });
+    await registerResponder("whatsapp-web", adapter, {
+      ...(cfg.whatsAppDefaultChatId
+        ? { trustedChatId: cfg.whatsAppDefaultChatId }
+        : { onFirstContact: persistWhatsAppDefaultChatId }),
+    });
 
     p.log.message("WhatsApp Web listener: enabled (QR-link mode)");
   } else if (cfg.whatsAppMode === "qr-link") {
