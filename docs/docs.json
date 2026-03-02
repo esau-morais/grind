@@ -161,6 +161,17 @@
   "footer": {
     "socials": {
       "github": "https://github.com/esau-morais/grind"
-    }
+    },
+    "links": [
+      {
+        "header": "Legal",
+        "items": [
+          {
+            "label": "Privacy Policy",
+            "href": "https://grindxp.app/privacy"
+          }
+        ]
+      }
+    ]
   }
 }
