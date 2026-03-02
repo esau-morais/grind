@@ -1,6 +1,18 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 
+import type { WAMessage } from "@whiskeysockets/baileys";
+import { DisconnectReason } from "@whiskeysockets/baileys";
+
 import { getGrindHome } from "@grindxp/core";
+
+import {
+  closeSocket,
+  createWASocket,
+  extractDisconnectStatusCode,
+  formatDisconnectError,
+  waitForConnection,
+} from "./whatsapp-session.js";
 
 export interface WhatsAppWebListenerOptions {
   gatewayUrl: string;
@@ -8,73 +20,202 @@ export interface WhatsAppWebListenerOptions {
 }
 
 export interface WhatsAppWebListener {
-  sendPort: Promise<number | null>;
-  stop: () => Promise<void>;
+  sendMessage:
+    | ((jid: string, content: { text: string }) => Promise<{ key?: { id?: string } }>)
+    | null;
+  stop: () => void;
 }
 
 export function startWhatsAppWebListener(options: WhatsAppWebListenerOptions): WhatsAppWebListener {
   const authDir = join(getGrindHome(), "channels", "whatsapp", "auth");
-  const runnerPath = join(import.meta.dir, "whatsapp-web-listener-runner.mjs");
 
-  const payload = JSON.stringify({
-    authDir,
-    gatewayUrl: options.gatewayUrl,
-    token: options.token,
-  });
+  if (!existsSync(authDir)) {
+    process.stderr.write(
+      "WhatsApp auth is missing. Run `grindxp integrations setup` and link first.\n",
+    );
+    return { sendMessage: null, stop: () => {} };
+  }
 
-  let resolveSendPort: (port: number | null) => void = () => {};
-  const sendPort = new Promise<number | null>((resolve) => {
-    resolveSendPort = resolve;
-  });
+  let stopRequested = false;
+  let activeSendMessage: WhatsAppWebListener["sendMessage"] = null;
 
-  const child = Bun.spawn(["node", runnerPath, payload], {
-    stdin: "ignore",
-    stdout: "pipe",
-    stderr: "inherit",
-  });
-
-  // Read stdout line-by-line to capture WHATSAPP_SEND_PORT=<port>
-  let portResolved = false;
-  void (async () => {
-    const reader = child.stdout.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          const trimmed = line.trim();
-          process.stdout.write(trimmed + "\n");
-          if (!portResolved && trimmed.startsWith("WHATSAPP_SEND_PORT=")) {
-            const portStr = trimmed.slice("WHATSAPP_SEND_PORT=".length);
-            const port = Number.parseInt(portStr, 10);
-            if (Number.isInteger(port) && port > 0) {
-              portResolved = true;
-              resolveSendPort(port);
-            }
-          }
-        }
-      }
-    } catch {
-      // reader closed
-    }
-    if (!portResolved) {
-      portResolved = true;
-      resolveSendPort(null);
-    }
-  })();
+  void runLoop();
 
   return {
-    sendPort,
-    stop: async () => {
-      if (child.exitCode === null) {
-        child.kill("SIGTERM");
-      }
-      await child.exited;
+    get sendMessage() {
+      return activeSendMessage;
+    },
+    stop: () => {
+      stopRequested = true;
     },
   };
+
+  async function runLoop() {
+    let retryMs = 2000;
+
+    while (!stopRequested) {
+      const { socket, flushCreds } = await createWASocket(authDir);
+
+      try {
+        await waitForConnection(socket, 30_000);
+        process.stdout.write("WhatsApp Web listener connected.\n");
+        retryMs = 2000;
+        void flushCreds();
+
+        activeSendMessage = async (jid, content) => {
+          const result = await socket.sendMessage(jid, content);
+          return result ?? {};
+        };
+
+        const closeReason = await runListenerLoop(socket);
+        activeSendMessage = null;
+
+        if (stopRequested) break;
+
+        if (closeReason.loggedOut) {
+          process.stderr.write(
+            "WhatsApp session logged out. Re-link with `grindxp integrations setup`.\n",
+          );
+          break;
+        }
+
+        process.stderr.write("WhatsApp listener disconnected. Reconnecting...\n");
+      } catch (err) {
+        activeSendMessage = null;
+        if (!stopRequested) {
+          process.stderr.write(
+            `WhatsApp listener connection error: ${formatDisconnectError(err)}\n`,
+          );
+        }
+      } finally {
+        await closeSocket(socket);
+      }
+
+      if (!stopRequested) {
+        await Bun.sleep(retryMs);
+        retryMs = Math.min(retryMs * 2, 30_000);
+      }
+    }
+  }
+
+  async function runListenerLoop(
+    socket: Awaited<ReturnType<typeof createWASocket>>["socket"],
+  ): Promise<{ status: number | undefined; loggedOut: boolean }> {
+    return new Promise((resolve) => {
+      const close = (reason: { status: number | undefined; loggedOut: boolean }) => {
+        cleanup();
+        resolve(reason);
+      };
+
+      const onMessage = async (upsert: { type: string; messages: WAMessage[] }) => {
+        if (upsert?.type !== "notify") return;
+
+        for (const message of upsert.messages ?? []) {
+          const key = message?.key;
+          if (!key || key.fromMe) continue;
+
+          const remoteJid = key.remoteJid;
+          const messageId = key.id;
+          if (!remoteJid || !messageId) continue;
+          const participant = key.participant ?? null;
+          const fromJid = participant ?? remoteJid;
+          const text = extractText(message.message as Record<string, unknown> | undefined);
+          const detectedAt =
+            typeof message.messageTimestamp === "number"
+              ? Math.max(1, Math.trunc(message.messageTimestamp)) * 1000
+              : Date.now();
+
+          const eventPayload = {
+            channel: "whatsapp-web",
+            eventName: "message.received",
+            messageId,
+            chatId: remoteJid,
+            from: jidToId(fromJid),
+            ...(participant ? { senderJid: participant } : {}),
+            ...(text ? { text } : {}),
+          };
+
+          const body = {
+            type: "context",
+            confidence: 0.95,
+            detectedAt,
+            dedupeKey: `whatsapp-web:${messageId}`,
+            payload: eventPayload,
+            eventPayload,
+          };
+
+          try {
+            const response = await fetch(`${options.gatewayUrl}/hooks/inbound`, {
+              method: "POST",
+              headers: {
+                authorization: `Bearer ${options.token}`,
+                "content-type": "application/json",
+              },
+              body: JSON.stringify(body),
+            });
+
+            if (!response.ok) {
+              process.stderr.write(`Failed forwarding WhatsApp event (${response.status}).\n`);
+            }
+          } catch (err) {
+            process.stderr.write(
+              `Failed forwarding WhatsApp event: ${formatDisconnectError(err)}\n`,
+            );
+          }
+        }
+      };
+
+      const onConnectionUpdate = (update: {
+        connection?: string;
+        lastDisconnect?: { error?: unknown };
+      }) => {
+        if (update.connection !== "close") return;
+        const status = extractDisconnectStatusCode(update.lastDisconnect?.error);
+        close({ status, loggedOut: status === DisconnectReason.loggedOut });
+      };
+
+      const interval = setInterval(() => {
+        if (stopRequested) close({ status: undefined, loggedOut: false });
+      }, 400);
+
+      const cleanup = () => {
+        clearInterval(interval);
+        socket.ev.off("messages.upsert", onMessage);
+        socket.ev.off("connection.update", onConnectionUpdate);
+      };
+
+      socket.ev.on("messages.upsert", onMessage);
+      socket.ev.on("connection.update", onConnectionUpdate);
+    });
+  }
+}
+
+function extractText(message: Record<string, unknown> | undefined): string | undefined {
+  if (!message || typeof message !== "object") return undefined;
+
+  if (typeof message.conversation === "string" && message.conversation.trim()) {
+    return message.conversation.trim();
+  }
+
+  const extended = message.extendedTextMessage as { text?: string } | undefined;
+  if (extended && typeof extended.text === "string" && extended.text.trim()) {
+    return extended.text.trim();
+  }
+
+  const image = message.imageMessage as { caption?: string } | undefined;
+  if (image && typeof image.caption === "string" && image.caption.trim()) {
+    return image.caption.trim();
+  }
+
+  const video = message.videoMessage as { caption?: string } | undefined;
+  if (video && typeof video.caption === "string" && video.caption.trim()) {
+    return video.caption.trim();
+  }
+
+  return undefined;
+}
+
+function jidToId(jid: string): string {
+  const at = jid.indexOf("@");
+  return at === -1 ? jid : jid.slice(0, at);
 }
