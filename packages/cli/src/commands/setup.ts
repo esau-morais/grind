@@ -355,7 +355,7 @@ export async function setupCommand(): Promise<void> {
   p.outro("Agent configured. Run `grindxp chat` to start talking.");
 }
 
-async function ensureWebServer(): Promise<void> {
+export async function ensureWebServer(): Promise<void> {
   const status = await getManagedWebStatus();
   if (status.reachable) return;
 
@@ -374,7 +374,7 @@ async function ensureWebServer(): Promise<void> {
   }
 }
 
-function startOAuthProxy(config: OAuthCallbackConfig) {
+export function startOAuthProxy(config: OAuthCallbackConfig) {
   const server = Bun.serve({
     port: config.callbackPort,
     hostname: "127.0.0.1",
