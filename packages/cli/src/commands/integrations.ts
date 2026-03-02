@@ -487,14 +487,39 @@ async function runChannelWizard(
   }
 
   if (provider === "discord") {
-    const publicKey = await promptValue({
-      message: "Discord application public key",
-      placeholder: "from Discord Developer Portal",
+    p.note(
+      [
+        "1) Go to https://discord.com/developers/applications",
+        "2) Select your app (or 'New Application' to create one)",
+        "3) Bot tab → Reset Token → copy the Token (save it — only shown once)",
+        "4) Bot tab → Privileged Gateway Intents → enable Message Content Intent",
+        "5) Installation → Default Install Settings → add bot + applications.commands",
+        "   scopes, Send Messages permission → copy the Install Link and install",
+        "6) General Information → copy Public Key (optional, for request verification)",
+      ].join("\n"),
+      "Discord Bot Setup",
+    );
+
+    const botToken = await promptValue({
+      message: "Discord bot token",
+      placeholder: "from Bot tab in Developer Portal",
       required: true,
     });
+    if (botToken.cancelled) return { gateway, changed: false, cancelled: true };
+
+    const publicKey = await promptValue({
+      message: "Discord application public key (optional)",
+      placeholder: "from General Information — for request verification",
+      required: false,
+    });
     if (publicKey.cancelled) return { gateway, changed: false, cancelled: true };
+
     return {
-      gateway: { ...gateway, discordPublicKey: publicKey.value },
+      gateway: {
+        ...gateway,
+        discordBotToken: botToken.value,
+        ...(publicKey.value ? { discordPublicKey: publicKey.value } : {}),
+      },
       changed: true,
       cancelled: false,
     };
@@ -624,7 +649,7 @@ function isChannelConfigured(
   whatsAppMode?: WhatsAppSetupMode,
 ): boolean {
   if (provider === "telegram") return Boolean(gateway.telegramBotToken);
-  if (provider === "discord") return Boolean(gateway.discordPublicKey);
+  if (provider === "discord") return Boolean(gateway.discordBotToken);
   if (whatsAppMode === "qr-link")
     return Boolean(gateway.whatsAppMode === "qr-link" && gateway.whatsAppLinkedAt);
   return Boolean(
