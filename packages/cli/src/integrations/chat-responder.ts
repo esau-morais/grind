@@ -44,7 +44,9 @@ interface ChatResponderOptions {
   adapter: ChannelAdapter;
   onWarn?: (message: string) => void;
   onFirstContact?: (chatId: string) => void;
-  trustedChatId?: string;
+  onMessageAllowed?: (chatId: string) => void;
+  allowedChatIds?: string[];
+  allowedSenderIds?: string[];
 }
 
 export interface ChatResponder {
@@ -89,12 +91,16 @@ export async function createChatResponder(
       const queueKey = extractChatId(event.normalized);
       if (!queueKey) return;
 
-      if (trustedChatId && queueKey !== trustedChatId) return;
+      const senderId = extractSenderId(event.normalized);
 
-      if (!trustedChatId) {
-        trustedChatId = queueKey;
+      if (!isAllowed(queueKey, senderId)) return;
+
+      if (allowedChatIds.size === 0 && allowedSenderIds.size === 0) {
+        allowedChatIds.add(queueKey);
         options.onFirstContact?.(queueKey);
       }
+
+      options.onMessageAllowed?.(queueKey);
 
       const chain = pendingByChatId.get(queueKey) ?? Promise.resolve();
       const next = chain
@@ -551,4 +557,9 @@ function pruneSeenKeys(map: Map<string, number>): void {
 function extractChatId(normalized: NormalizedGatewayEvent): string | null {
   const p = normalized.forgeEvent.payload;
   return asString(p.chatId) ?? asString(p.from);
+}
+
+function extractSenderId(normalized: NormalizedGatewayEvent): string | null {
+  const p = normalized.forgeEvent.payload;
+  return asString(p.senderId);
 }

@@ -89,7 +89,7 @@ async function safeSaveCreds(authDir: string, saveCreds: () => Promise<void>): P
   }
 }
 
-export async function createWASocket(authDir: string) {
+export async function createWASocket(authDir: string, options?: { syncFullHistory?: boolean }) {
   maybeRestoreCredsFromBackup(authDir);
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
   const { version } = await fetchLatestBaileysVersion();
@@ -102,7 +102,7 @@ export async function createWASocket(authDir: string) {
     version,
     logger: silentLogger,
     printQRInTerminal: false,
-    syncFullHistory: false,
+    syncFullHistory: options?.syncFullHistory ?? false,
     markOnlineOnConnect: false,
     browser: ["grind", "cli", "0.1.0"],
   });
@@ -221,7 +221,7 @@ export function formatDisconnectError(error: unknown): string {
   if (status === DisconnectReason.loggedOut) {
     return "WhatsApp session logged out. Clear auth and scan a fresh QR.";
   }
-  if (status === DisconnectReason.restartRequired || status === 515) {
+  if (status === DisconnectReason.restartRequired) {
     return "Restart required.";
   }
   if (status) {

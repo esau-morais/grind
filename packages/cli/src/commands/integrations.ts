@@ -7,6 +7,7 @@ import {
   GOOGLE_OAUTH_KEY,
   buildGoogleOAuthConfig,
   GRIND_GOOGLE_CLIENT_ID,
+  readGrindConfig,
   removeOAuthToken,
   saveOAuthToken,
   startOAuthFlow,
@@ -18,6 +19,12 @@ import {
 
 import type { CliContext } from "../context";
 import { linkWhatsAppAccount } from "../integrations/whatsapp-link";
+import {
+  readGatewayProcessState,
+  startManagedGateway,
+  stopManagedGateway,
+} from "../gateway/service";
+import { startOAuthProxy } from "./setup";
 
 export type ChannelProvider = "telegram" | "discord" | "whatsapp";
 export type ServiceProvider = "google";
@@ -37,6 +44,7 @@ interface ChannelWizardResult {
   gateway: GatewayConfig;
   changed: boolean;
   cancelled: boolean;
+  gatewayWasRunning?: boolean;
 }
 
 function generateSecretToken(): string {
@@ -91,7 +99,7 @@ export async function integrationsListCommand(ctx: CliContext): Promise<void> {
     `  Gateway: ${gateway ? `http://${gateway.host}:${gateway.port}/` : "not configured"} (${gateway?.enabled ? "enabled" : "disabled"})`,
   );
   p.log.message(`  Telegram : ${gateway?.telegramBotToken ? "configured" : "not configured"}`);
-  p.log.message(`  Discord  : ${gateway?.discordPublicKey ? "configured" : "not configured"}`);
+  p.log.message(`  Discord  : ${gateway?.discordBotToken ? "configured" : "not configured"}`);
   p.log.message(`  WhatsApp : ${describeWhatsApp(gateway)}`);
 
   p.log.step("Services (data)");

@@ -5,7 +5,7 @@ import * as path from "path";
 import os from "os";
 import { z } from "zod";
 
-import { readGrindConfig, writeGrindConfig, type GrindConfig } from "../grind-home";
+import { readContacts, readGrindConfig, writeGrindConfig, type GrindConfig } from "../grind-home";
 import { markdownToTelegramHtml } from "../gateway/telegram-format";
 import { getOAuthToken } from "./auth-store";
 import {
@@ -1064,8 +1064,9 @@ export function createGrindTools(ctx: ToolContext) {
         "Return current integration configuration for channels (Telegram, WhatsApp, Discord) and services (Google Calendar, Gmail). Use this before claiming whether integrations are connected.",
       inputSchema: z.object({}),
       execute: async () => {
-        const gateway = ctx.config?.gateway;
-        const services = ctx.config?.services;
+        const freshConfig = readGrindConfig();
+        const gateway = freshConfig?.gateway;
+        const services = freshConfig?.services;
         const googleConfig = services?.google;
         const googleToken = getOAuthToken(GOOGLE_OAUTH_KEY);
 
@@ -1078,12 +1079,14 @@ export function createGrindTools(ctx: ToolContext) {
             telegram: {
               connected: Boolean(gateway?.telegramBotToken),
               defaultChatId: gateway?.telegramDefaultChatId ?? null,
+              allowedChatIds: gateway?.telegramAllowedChatIds ?? [],
               webhookPath: gateway?.telegramWebhookPath ?? "/hooks/telegram",
             },
             discord: {
               connected: Boolean(gateway?.discordBotToken),
               interactionsEndpoint: Boolean(gateway?.discordPublicKey),
               defaultChatId: gateway?.discordDefaultChatId ?? null,
+              allowedSenderIds: gateway?.discordAllowedSenderIds ?? [],
               webhookPath: gateway?.discordWebhookPath ?? "/hooks/discord",
             },
             whatsApp: {
@@ -1093,6 +1096,7 @@ export function createGrindTools(ctx: ToolContext) {
                 Boolean(gateway?.whatsAppLinkedAt) ||
                 Boolean(gateway?.whatsAppAccessToken && gateway?.whatsAppPhoneNumberId),
               defaultChatId: gateway?.whatsAppDefaultChatId ?? null,
+              allowedChatIds: gateway?.whatsAppAllowedChatIds ?? [],
               cloudApiConfigured: Boolean(
                 gateway?.whatsAppAccessToken && gateway?.whatsAppPhoneNumberId,
               ),
@@ -1110,6 +1114,85 @@ export function createGrindTools(ctx: ToolContext) {
           },
           note: "Channel automations require the gateway process to be running. Google services sync automatically while the gateway runs.",
         };
+      },
+    }),
+
+    trust_contact: tool({
+      description:
+        "Add a contact to the trusted allowlist for a messaging channel so the AI will respond to their messages. " +
+        "For Discord, provide the sender's user ID (not a channel ID). " +
+        "For Telegram and WhatsApp, provide the chat ID or JID.",
+      inputSchema: z.object({
+        channel: z.enum(["telegram", "discord", "whatsapp"]),
+        id: z.string().min(1).describe("Discord sender user ID, or Telegram/WhatsApp chat ID/JID"),
+      }),
+      execute: async ({ channel, id }) => {
+        if (!ctx.config?.gateway) return { ok: false, error: "Gateway not configured." };
+
+        const onDisk = readGrindConfig();
+        if (!onDisk?.gateway) return { ok: false, error: "Config not found on disk." };
+
+        let updated = onDisk.gateway;
+
+        if (channel === "discord") {
+          const existing = updated.discordAllowedSenderIds ?? [];
+          if (existing.includes(id)) return { ok: true, channel, id, alreadyTrusted: true };
+          updated = { ...updated, discordAllowedSenderIds: [...existing, id] };
+        } else if (channel === "telegram") {
+          const existing = updated.telegramAllowedChatIds ?? [];
+          if (existing.includes(id)) return { ok: true, channel, id, alreadyTrusted: true };
+          updated = {
+            ...updated,
+            telegramAllowedChatIds: [...existing, id],
+            ...(updated.telegramDefaultChatId ? {} : { telegramDefaultChatId: id }),
+          };
+        } else {
+          const normalizedId = /^[\d\s\-+()]+$/.test(id)
+            ? `${id.replace(/\D/g, "")}@s.whatsapp.net`
+            : id;
+          const existing = updated.whatsAppAllowedChatIds ?? [];
+          if (existing.includes(normalizedId))
+            return { ok: true, channel, id: normalizedId, alreadyTrusted: true };
+          updated = {
+            ...updated,
+            whatsAppAllowedChatIds: [...existing, normalizedId],
+            ...(updated.whatsAppDefaultChatId ? {} : { whatsAppDefaultChatId: normalizedId }),
+          };
+          id = normalizedId;
+        }
+
+        writeGrindConfig({ ...onDisk, gateway: updated });
+
+        ctx.config = {
+          ...ctx.config,
+          gateway: updated,
+        };
+
+        return { ok: true, channel, id, alreadyTrusted: false };
+      },
+    }),
+
+    lookup_contact: tool({
+      description:
+        "Look up a contact by name to get their messaging ID (WhatsApp JID, etc.). Call this before send_channel_message when the user asks to message a named third party and no chatId is known. Returns all partial matches — pick the best one. If no match is found, ask the user for the contact's phone number, then call trust_contact to save it before sending.",
+      inputSchema: z.object({
+        name: z
+          .string()
+          .min(1)
+          .describe(
+            "Contact name to search for (case-insensitive, partial match, accent-insensitive).",
+          ),
+      }),
+      execute: async ({ name }) => {
+        const contacts = readContacts();
+        const normalize = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+        const query = normalize(name);
+        const matches = contacts.filter(
+          (c) => normalize(c.name).includes(query) || normalize(c.notify ?? "").includes(query),
+        );
+        if (matches.length === 0)
+          return { ok: false, error: `No contact found matching "${name}".` };
+        return { ok: true, matches };
       },
     }),
 
@@ -1521,18 +1604,69 @@ export function createGrindTools(ctx: ToolContext) {
 
     send_channel_message: tool({
       description:
-        "Send a message to the user on a specific channel (telegram, discord, or whatsapp). Chat ID is auto-resolved from config or recent activity — do not ask the user for it. Use this for proactive notifications or connection tests.",
+        "Send a message on a specific channel (telegram, discord, or whatsapp). Sending to the owner: omit chatId and recipientName — auto-resolves from config. Sending to a WhatsApp third party: provide recipientName and the tool resolves their JID from contacts internally — never pass a raw JID or phone number for WhatsApp. If no contact matches, ask the user for their phone number, then call trust_contact to save it, then retry with recipientName. For telegram/discord third parties, provide chatId directly.",
       inputSchema: z.object({
-        channel: z
-          .enum(["telegram", "discord", "whatsapp"])
-          .describe("Channel to send on: telegram, discord, or whatsapp."),
+        channel: z.enum(["telegram", "discord", "whatsapp"]).describe("Channel to send on."),
         text: z.string().min(1).max(4000).describe("Message text to send."),
         chatId: z
           .string()
           .optional()
-          .describe("Chat/channel ID. Omit to auto-resolve from config or recent activity."),
+          .describe(
+            "Chat/channel ID for telegram/discord. Not used for WhatsApp third parties — use recipientName instead. Omit to send to the owner.",
+          ),
+        recipientName: z
+          .string()
+          .optional()
+          .describe(
+            "WhatsApp only. Recipient's contact name — resolved internally from contacts. Use this for all WhatsApp third-party sends.",
+          ),
       }),
-      execute: async ({ channel, text, chatId }) => {
+      execute: async ({ channel, text, chatId, recipientName }) => {
+        let resolvedRecipient: { name: string; phone: string } | undefined;
+
+        if (channel === "whatsapp" && recipientName) {
+          const contacts = readContacts();
+          const normalize = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+          const query = normalize(recipientName);
+          const matches = contacts.filter(
+            (c) => normalize(c.name).includes(query) || normalize(c.notify ?? "").includes(query),
+          );
+
+          if (matches.length === 0) {
+            return {
+              ok: false,
+              error: `No contact found matching "${recipientName}". Ask the user for their phone number, then call trust_contact with the phone number and a name to save it, then retry with recipientName.`,
+            };
+          }
+
+          if (matches.length > 1) {
+            const list = matches.map((c) => `${c.name} (${c.whatsappId})`).join(", ");
+            return {
+              ok: false,
+              error: `Multiple contacts match "${recipientName}": ${list}. Provide a more specific name in recipientName.`,
+            };
+          }
+
+          const resolvedJid = matches[0]!.whatsappId;
+          if (chatId && chatId !== resolvedJid) {
+            return {
+              ok: false,
+              error: `chatId "${chatId}" does not match the resolved contact "${matches[0]!.name}" (${resolvedJid}). Remove chatId and let recipientName resolve automatically.`,
+            };
+          }
+
+          chatId = resolvedJid;
+          resolvedRecipient = {
+            name: matches[0]!.name,
+            phone: resolvedJid.replace("@s.whatsapp.net", ""),
+          };
+        } else if (channel === "whatsapp" && chatId) {
+          return {
+            ok: false,
+            error: `For WhatsApp third-party messages, use recipientName instead of chatId. The tool resolves the contact JID internally. To send to the owner, omit both chatId and recipientName.`,
+          };
+        }
+
         if (channel === "telegram") {
           const token =
             ctx.config?.gateway?.telegramBotToken ??
@@ -1646,7 +1780,14 @@ export function createGrindTools(ctx: ToolContext) {
           };
         }
 
-        return { ok: true, channel, chatId: targetChatId };
+        return {
+          ok: true,
+          channel,
+          chatId: targetChatId,
+          ...(resolvedRecipient
+            ? { sentTo: `${resolvedRecipient.name} (+${resolvedRecipient.phone})` }
+            : {}),
+        };
       },
     }),
 

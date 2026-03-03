@@ -1,10 +1,12 @@
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import type { WAMessage } from "@whiskeysockets/baileys";
 import { DisconnectReason } from "@whiskeysockets/baileys";
 
-import { getGrindHome } from "@grindxp/core";
+import { getGrindHome, readGrindConfig, writeGrindConfig } from "@grindxp/core";
+
+import { createContactCollector } from "./whatsapp-contacts.js";
 
 import {
   closeSocket,
@@ -56,6 +58,20 @@ export function startWhatsAppWebListener(options: WhatsAppWebListenerOptions): W
     while (!stopRequested) {
       const { socket, flushCreds } = await createWASocket(authDir);
 
+      // Register contact listeners before waitForConnection — messaging-history.set
+      // fires during the handshake, before the connection is fully open.
+      const contactCollector = createContactCollector(socket.ev);
+      let contactsFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+      const scheduleContactFlush = () => {
+        if (contactsFlushTimer) clearTimeout(contactsFlushTimer);
+        contactsFlushTimer = setTimeout(() => contactCollector.flush(), 2000);
+      };
+
+      socket.ev.on("contacts.upsert", scheduleContactFlush);
+      socket.ev.on("contacts.update", scheduleContactFlush);
+      socket.ev.on("messaging-history.set", scheduleContactFlush);
+
       try {
         await waitForConnection(socket, 30_000);
         process.stdout.write("WhatsApp Web listener connected.\n");
@@ -67,7 +83,9 @@ export function startWhatsAppWebListener(options: WhatsAppWebListenerOptions): W
           return result ?? {};
         };
 
-        const closeReason = await runListenerLoop(socket);
+        const closeReason = await runListenerLoop(socket, () => {
+          activeSendMessage = null;
+        });
         activeSendMessage = null;
 
         if (stopRequested) break;
@@ -76,6 +94,7 @@ export function startWhatsAppWebListener(options: WhatsAppWebListenerOptions): W
           process.stderr.write(
             "WhatsApp session logged out. Re-link with `grindxp integrations setup`.\n",
           );
+          clearWhatsAppLinkedState(authDir);
           break;
         }
 
@@ -100,6 +119,7 @@ export function startWhatsAppWebListener(options: WhatsAppWebListenerOptions): W
 
   async function runListenerLoop(
     socket: Awaited<ReturnType<typeof createWASocket>>["socket"],
+    onDisconnecting: () => void,
   ): Promise<{ status: number | undefined; loggedOut: boolean }> {
     return new Promise((resolve) => {
       const close = (reason: { status: number | undefined; loggedOut: boolean }) => {
@@ -170,6 +190,7 @@ export function startWhatsAppWebListener(options: WhatsAppWebListenerOptions): W
         lastDisconnect?: { error?: unknown };
       }) => {
         if (update.connection !== "close") return;
+        onDisconnecting();
         const status = extractDisconnectStatusCode(update.lastDisconnect?.error);
         close({ status, loggedOut: status === DisconnectReason.loggedOut });
       };
@@ -218,4 +239,26 @@ function extractText(message: Record<string, unknown> | undefined): string | und
 function jidToId(jid: string): string {
   const at = jid.indexOf("@");
   return at === -1 ? jid : jid.slice(0, at);
+}
+
+function clearWhatsAppLinkedState(authDir: string): void {
+  try {
+    rmSync(authDir, { recursive: true, force: true });
+  } catch {
+    // best-effort
+  }
+
+  try {
+    const config = readGrindConfig();
+    if (!config?.gateway) return;
+    const {
+      whatsAppLinkedAt: _,
+      whatsAppDefaultChatId: __,
+      whatsAppAllowedChatIds: ___,
+      ...rest
+    } = config.gateway;
+    writeGrindConfig({ ...config, gateway: rest });
+  } catch {
+    // best-effort
+  }
 }
