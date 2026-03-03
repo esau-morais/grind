@@ -66,6 +66,7 @@ export async function startChat(): Promise<void> {
     timerPath,
     config,
     trustLevel: companion?.trustLevel ?? 0,
+    interactive: true as const,
   };
   const promptCtx = {
     user,

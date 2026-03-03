@@ -211,7 +211,7 @@ function DashboardPage() {
                 >
                   <SwordIcon
                     size={16}
-                    weight="fill"
+                    weight="duotone"
                     className="text-grind-orange"
                     aria-hidden="true"
                   />
@@ -224,19 +224,22 @@ function DashboardPage() {
 
               {activeQuests.length === 0 ? (
                 <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-8 text-center">
-                  <SwordIcon size={28} className="text-muted-foreground/40" aria-hidden="true" />
+                  <SwordIcon
+                    size={28}
+                    weight="duotone"
+                    className="text-muted-foreground/40"
+                    aria-hidden="true"
+                  />
                   <div>
                     <p className="text-sm text-muted-foreground">No active quests</p>
                     <p className="mt-0.5 text-xs text-muted-foreground/70">
-                      Ask the{" "}
                       <Link
-                        to="/app/chat"
-                        search={{ c: undefined }}
+                        to="/app/quests"
                         className="text-grind-orange underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
                       >
-                        Companion
+                        Go to Quest Board
                       </Link>{" "}
-                      to create some
+                      to get started
                     </p>
                   </div>
                 </div>
@@ -257,7 +260,7 @@ function DashboardPage() {
               >
                 <LightningIcon
                   size={16}
-                  weight="fill"
+                  weight="duotone"
                   className="text-grind-orange"
                   aria-hidden="true"
                 />

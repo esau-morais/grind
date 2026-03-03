@@ -43,6 +43,7 @@ export function renderChat(root: Root, params: ChatRenderParams): void {
     timerPath: params.timerPath,
     config: params.config,
     trustLevel: params.companion?.trustLevel ?? 0,
+    interactive: true as const,
   };
   const promptCtx = {
     user: params.user,

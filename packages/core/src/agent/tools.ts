@@ -82,6 +82,12 @@ export interface ToolContext {
   userId: string;
   timerPath: string;
   trustLevel?: number;
+  /**
+   * True when the user is actively present in a live session (TUI chat, web chat,
+   * CLI chat, Telegram DM). In interactive mode trust gates are bypassed — trust
+   * only restricts autonomous/background actions the AI takes without being asked.
+   */
+  interactive?: boolean;
   config?: GrindConfig;
   requestPermission?: (toolName: string, detail: string) => Promise<PermissionReply>;
 }
@@ -109,6 +115,10 @@ function requireTrust(
   ctx: ToolContext,
   toolName: string,
 ): { denied: true; error: string } | { denied: false } {
+  // Interactive sessions (user actively present) bypass trust gates entirely.
+  // Trust only restricts autonomous actions the AI takes without being asked.
+  if (ctx.interactive) return { denied: false };
+
   const required = TOOL_TRUST_REQUIREMENTS[toolName];
   if (required === undefined) return { denied: false };
   const current = ctx.trustLevel ?? 0;
@@ -117,7 +127,7 @@ function requireTrust(
     const currentName = TRUST_LEVEL_NAMES[current] ?? `Lv.${current}`;
     return {
       denied: true,
-      error: `Action requires trust level ${required} (${requiredName}). Current level: ${current} (${currentName}). Grant trust with: grindxp companion trust ${required}`,
+      error: `I need more autonomy to do this on my own. Current trust: ${currentName} (Lv.${current}), required: ${requiredName} (Lv.${required}). You can adjust this in Companion settings.`,
     };
   }
   return { denied: false };
