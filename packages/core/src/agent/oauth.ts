@@ -198,7 +198,7 @@ function startCallbackFlow(
   pkce: PkceCodes,
 ): OAuthCallbackFlowHandle {
   const state = generateState();
-  const redirectUri = `http://localhost:${config.callbackPort}/auth/callback`;
+  const redirectUri = `http://127.0.0.1:${config.callbackPort}/auth/callback`;
 
   const params = new URLSearchParams({
     response_type: "code",

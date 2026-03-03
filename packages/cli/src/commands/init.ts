@@ -22,7 +22,7 @@ import {
 import { createUser, upsertCompanion } from "@grindxp/core/vault";
 import { showTitle } from "../brand";
 import { ensureGatewayDefaults, runIntegrationWizard } from "./integrations";
-import { startOAuthProxy } from "./setup";
+import { waitForOAuthCode } from "./setup";
 import { startManagedGateway } from "../gateway/service";
 import { spinner } from "../spinner";
 
@@ -198,39 +198,12 @@ export async function initCommand(): Promise<void> {
             process.exit(1);
           }
         } else {
-          let resolveCode!: (code: string) => void;
-          let rejectCode!: (err: Error) => void;
-          const codePromise = new Promise<string>((res, rej) => {
-            resolveCode = res;
-            rejectCode = rej;
-          });
-
-          const proxy = startOAuthProxy(
-            oauthConfig as OAuthCallbackConfig,
-            (code) => resolveCode(code),
-            (error) => rejectCode(new Error(`Authorization failed: ${error}`)),
-          );
-
-          const timeoutId = setTimeout(
-            () => rejectCode(new Error("Authorization timed out after 120s.")),
-            120_000,
-          );
-
-          const spin2 = spinner();
-          spin2.start("Waiting for authentication…");
-
           try {
-            const code = await codePromise;
-            clearTimeout(timeoutId);
+            const code = await waitForOAuthCode(oauthConfig as OAuthCallbackConfig);
             await flow.completeWithCode(code);
-            spin2.stop("Authenticated successfully.");
           } catch (err) {
-            clearTimeout(timeoutId);
-            spin2.error("Authentication failed.");
             p.log.error(err instanceof Error ? err.message : String(err));
             process.exit(1);
-          } finally {
-            proxy.stop();
           }
         }
       }
