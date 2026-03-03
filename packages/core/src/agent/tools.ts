@@ -5,7 +5,13 @@ import * as path from "path";
 import os from "os";
 import { z } from "zod";
 
-import { readContacts, readGrindConfig, writeGrindConfig, type GrindConfig } from "../grind-home";
+import {
+  readContacts,
+  readGrindConfig,
+  writeContacts,
+  writeGrindConfig,
+  type GrindConfig,
+} from "../grind-home";
 import { markdownToTelegramHtml } from "../gateway/telegram-format";
 import { getOAuthToken } from "./auth-store";
 import {
@@ -1119,14 +1125,18 @@ export function createGrindTools(ctx: ToolContext) {
 
     trust_contact: tool({
       description:
-        "Add a contact to the trusted allowlist for a messaging channel so the AI will respond to their messages. " +
-        "For Discord, provide the sender's user ID (not a channel ID). " +
-        "For Telegram and WhatsApp, provide the chat ID or JID.",
+        "Add a contact to the trusted allowlist for a messaging channel so the AI will respond to their messages. For Discord, provide the sender's user ID (not a channel ID). For Telegram and WhatsApp, provide the chat ID or JID. For WhatsApp, also provide name so the contact is saved to contacts.json and reachable by send_channel_message.",
       inputSchema: z.object({
         channel: z.enum(["telegram", "discord", "whatsapp"]),
         id: z.string().min(1).describe("Discord sender user ID, or Telegram/WhatsApp chat ID/JID"),
+        name: z
+          .string()
+          .optional()
+          .describe(
+            "WhatsApp only. Contact display name — stored in contacts.json so send_channel_message can resolve this contact by name.",
+          ),
       }),
-      execute: async ({ channel, id }) => {
+      execute: async ({ channel, id, name }) => {
         if (!ctx.config?.gateway) return { ok: false, error: "Gateway not configured." };
 
         const onDisk = readGrindConfig();
@@ -1159,6 +1169,11 @@ export function createGrindTools(ctx: ToolContext) {
             ...(updated.whatsAppDefaultChatId ? {} : { whatsAppDefaultChatId: normalizedId }),
           };
           id = normalizedId;
+
+          const contacts = readContacts();
+          if (!contacts.some((c) => c.whatsappId === normalizedId)) {
+            writeContacts([...contacts, { name: name ?? "", whatsappId: normalizedId }]);
+          }
         }
 
         writeGrindConfig({ ...onDisk, gateway: updated });

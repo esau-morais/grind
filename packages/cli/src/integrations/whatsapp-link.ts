@@ -124,8 +124,6 @@ export async function linkWhatsAppAccount(
 
   try {
     const primary = await createWASocket(authDir, { syncFullHistory: true });
-    // Register pairing listeners before contact collector — ordering doesn't matter
-    // for contacts, but QR must be shown as early as possible.
     registerPairingListeners(primary, options);
 
     try {

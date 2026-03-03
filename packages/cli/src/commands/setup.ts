@@ -6,6 +6,7 @@ import {
   type AiConfig,
   type AiProvider,
   type AuthType,
+  type OAuthCallbackConfig,
   DEFAULT_MODELS,
   OAUTH_CONFIGS,
   getMigrationsPath,
@@ -18,7 +19,6 @@ import {
 import { getCompanionByUserId, upsertCompanion } from "@grindxp/core/vault";
 import { showTitle } from "../brand";
 import { spinner } from "../spinner";
-import type { OAuthCallbackConfig } from "@grindxp/core";
 import { resolveWeb } from "./web";
 import {
   clearWebProcessState,
@@ -187,33 +187,20 @@ export async function setupCommand(): Promise<void> {
         process.exit(1);
       }
 
-      let proxy: ReturnType<typeof startOAuthProxy> | undefined;
-      if (oauthConfig.method === "callback") {
-        await ensureWebServer();
-        proxy = startOAuthProxy(oauthConfig);
-      }
-
       const flow = startOAuthFlow(provider, oauthConfig);
 
-      // Try to open the browser automatically; always print the URL as fallback.
+      p.log.info(`Open this URL in your browser:\n  ${flow.authUrl}`);
+
+      // Best-effort browser open — silent on any failure (headless, no binary, no display).
       const openCmd =
         process.platform === "darwin"
           ? "open"
           : process.platform === "win32"
             ? "start"
             : "xdg-open";
-
-      let browserOpened = false;
       try {
         Bun.spawn([openCmd, flow.authUrl], { stdio: ["ignore", "ignore", "ignore"] });
-        browserOpened = true;
       } catch {}
-
-      if (browserOpened) {
-        p.log.info("Browser opened. Complete the login and return here.");
-      } else {
-        p.log.info(`Open this URL in your browser:\n  ${flow.authUrl}`);
-      }
 
       if (flow.method === "code") {
         // Anthropic: user pastes a code shown in the browser.
@@ -242,64 +229,41 @@ export async function setupCommand(): Promise<void> {
           process.exit(1);
         }
       } else {
-        // OpenAI: web server handles the redirect and writes the code to disk;
-        // the CLI polls for it. Falls back to manual URL paste if that times out.
+        // OpenAI: proxy receives the redirect and resolves the Promise directly.
+        let resolveCode!: (code: string) => void;
+        let rejectCode!: (err: Error) => void;
+        const codePromise = new Promise<string>((res, rej) => {
+          resolveCode = res;
+          rejectCode = rej;
+        });
+
+        const cbPort = (oauthConfig as OAuthCallbackConfig).callbackPort;
+        const proxy = startOAuthProxy(
+          oauthConfig as OAuthCallbackConfig,
+          (code) => resolveCode(code),
+          (error) => rejectCode(new Error(`Authorization failed: ${error}`)),
+        );
+
+        const timeoutId = setTimeout(
+          () => rejectCode(new Error("Authorization timed out after 120s.")),
+          120_000,
+        );
+
         const spin = spinner();
         spin.start("Waiting for authentication…");
 
-        const cbPort = (oauthConfig as OAuthCallbackConfig).callbackPort;
-        let oauthDone = false;
         try {
-          await flow.complete();
-          oauthDone = true;
+          const code = await codePromise;
+          clearTimeout(timeoutId);
+          await flow.completeWithCode(code);
           spin.stop("Authenticated successfully.");
-        } catch {
-          spin.stop("Automatic callback not received.");
+        } catch (err) {
+          clearTimeout(timeoutId);
+          spin.error("Authentication failed.");
+          p.log.error(err instanceof Error ? err.message : String(err));
+          process.exit(1);
         } finally {
-          proxy?.stop();
-        }
-
-        if (!oauthDone) {
-          p.log.warn(
-            `Could not receive the OAuth callback automatically.\n` +
-              `  If you're on a remote server, make sure port ${cbPort} is forwarded:\n` +
-              `  ssh -L ${cbPort}:127.0.0.1:${cbPort} <user@server>`,
-          );
-          p.log.info(
-            `Copy the full URL from your browser's address bar after logging in\n` +
-              `  (it starts with http://localhost:${cbPort}/auth/callback?code=…)`,
-          );
-
-          const urlResult = await p.text({
-            message: "Paste the redirect URL",
-            placeholder: `http://localhost:${cbPort}/auth/callback?code=…&state=…`,
-            validate: (v) => {
-              if (!v) return "URL is required";
-              try {
-                if (!new URL(v).searchParams.get("code")) return "No authorization code in URL";
-              } catch {
-                return "Invalid URL";
-              }
-            },
-          });
-
-          if (p.isCancel(urlResult)) {
-            p.outro("Cancelled.");
-            return;
-          }
-
-          const code = new URL(urlResult as string).searchParams.get("code") as string;
-
-          const spin2 = spinner();
-          spin2.start("Exchanging authorization code…");
-          try {
-            await flow.completeWithCode(code);
-            spin2.stop("Authenticated successfully.");
-          } catch (err) {
-            spin2.error("Authentication failed.");
-            p.log.error(err instanceof Error ? err.message : String(err));
-            process.exit(1);
-          }
+          proxy.stop();
         }
       }
     }
@@ -374,7 +338,11 @@ export async function ensureWebServer(): Promise<void> {
   }
 }
 
-export function startOAuthProxy(config: OAuthCallbackConfig) {
+export function startOAuthProxy(
+  config: OAuthCallbackConfig,
+  onSuccess: (code: string) => void,
+  onError: (error: string) => void,
+) {
   const server = Bun.serve({
     port: config.callbackPort,
     hostname: "127.0.0.1",
@@ -383,9 +351,40 @@ export function startOAuthProxy(config: OAuthCallbackConfig) {
       if (url.pathname !== "/auth/callback") {
         return new Response("Not found", { status: 404 });
       }
-      const target = `http://${WEB_HOST}:${WEB_PORT}${url.pathname}${url.search}`;
-      return fetch(target);
+
+      const code = url.searchParams.get("code");
+      const error = url.searchParams.get("error");
+
+      if (error) {
+        onError(error);
+        return new Response(oauthCallbackHtml(false, `Authorization failed: ${error}`), {
+          status: 400,
+          headers: { "Content-Type": "text/html" },
+        });
+      }
+
+      if (!code) {
+        onError("missing_code");
+        return new Response(oauthCallbackHtml(false, "Missing authorization code."), {
+          status: 400,
+          headers: { "Content-Type": "text/html" },
+        });
+      }
+
+      onSuccess(code);
+      return new Response(oauthCallbackHtml(true, "You can close this tab and return to grind."), {
+        headers: { "Content-Type": "text/html" },
+      });
     },
   });
   return { stop: () => server.stop() };
+}
+
+function oauthCallbackHtml(success: boolean, message: string): string {
+  const accent = success ? "#22c560" : "#f14d4c";
+  const title = success ? "Authenticated" : "Authentication Failed";
+  const icon = success
+    ? `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="19" stroke="${accent}" stroke-width="1.5"/><path d="M12 20.5l5.5 5.5 10.5-11" stroke="${accent}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+    : `<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="19" stroke="${accent}" stroke-width="1.5" stroke-dasharray="4 3"/><path d="M14 14l12 12M26 14L14 26" stroke="${accent}" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>grind — ${title}</title><style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui,sans-serif;background:#050506;color:#fafafa;display:flex;align-items:center;justify-content:center;min-height:100dvh}.card{display:flex;flex-direction:column;align-items:center;gap:16px;padding:2.5rem 3rem;border:1px solid #1f1f22;border-radius:12px;background:#0c0c0e;text-align:center;max-width:360px;width:100%}.wordmark{font-size:10px;font-weight:600;letter-spacing:.15em;text-transform:uppercase;color:#ff6c02;margin-bottom:4px}h1{font-size:1.125rem;font-weight:600;color:${accent};line-height:1.3}p{font-size:.875rem;color:#8e8e98;line-height:1.5}</style></head><body><div class="card"><span class="wordmark">GRIND</span>${icon}<div><h1>${title}</h1><p>${message}</p></div></div></body></html>`;
 }
