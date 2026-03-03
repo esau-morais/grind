@@ -233,17 +233,19 @@ export async function initCommand(): Promise<void> {
 
     const nameResult = await p.text({
       message: "Give your companion a name (optional)",
-      placeholder: "press enter to skip",
+      placeholder: "leave blank — let the companion choose",
     });
     if (p.isCancel(nameResult)) return bail();
-    if (typeof nameResult === "string" && nameResult.length > 0) companionName = nameResult;
+    if (typeof nameResult === "string" && nameResult.trim().length > 0)
+      companionName = nameResult.trim();
 
     const emojiResult = await p.text({
-      message: "Pick an emoji (optional)",
-      placeholder: "press enter to skip",
+      message: "Pick an emoji for your companion (optional)",
+      placeholder: "leave blank — let the companion choose",
     });
     if (p.isCancel(emojiResult)) return bail();
-    if (typeof emojiResult === "string" && emojiResult.length > 0) companionEmoji = emojiResult;
+    if (typeof emojiResult === "string" && emojiResult.trim().length > 0)
+      companionEmoji = emojiResult.trim();
 
     const vibeOptions = [
       { value: "direct", label: "Direct and concise", hint: "default" },
@@ -409,7 +411,7 @@ export async function initCommand(): Promise<void> {
     if (enableCompanion) {
       const nameDisplay = companionName
         ? `${companionEmoji ?? ""} ${companionName}`.trim()
-        : "(unnamed)";
+        : "(name TBD — companion will choose)";
       profileLines.push(`Companion: ${nameDisplay} (${PROVIDER_LABELS[companionProvider]})`);
     }
 

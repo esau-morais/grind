@@ -54,6 +54,20 @@ export async function getUserById(db: VaultDb, userId: string): Promise<UserProf
   return rowToProfile(row);
 }
 
+export async function updateUserDisplayName(
+  db: VaultDb,
+  userId: string,
+  displayName: string,
+): Promise<UserProfile> {
+  const [updated] = await db
+    .update(users)
+    .set({ displayName, updatedAt: Date.now() })
+    .where(eq(users.id, userId))
+    .returning();
+  if (!updated) throw new Error("User not found");
+  return rowToProfile(updated);
+}
+
 export async function addXpToUser(
   db: VaultDb,
   userId: string,
