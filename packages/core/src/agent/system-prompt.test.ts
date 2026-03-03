@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
 import type { Quest, UserProfile } from "../schema";
+import { companionSettingsSchema } from "../schema/companion";
+import { DEFAULT_SOUL } from "../companion/engine";
 import type { CompanionInsightRow, CompanionSettingsRow } from "../vault/schema";
 import { buildDynamicPrompt, buildStablePrompt } from "./system-prompt";
 
@@ -35,6 +37,66 @@ function makeInsight(index: number, category: "pattern" | "preference"): Compani
     updatedAt: Date.now() - index,
   };
 }
+
+describe("companionSettingsSchema emoji validation", () => {
+  const base = {
+    id: "c-1",
+    userId: "u-1",
+    name: null,
+    mode: "suggest" as const,
+    trustLevel: 0 as const,
+    trustScore: 0,
+    provider: "anthropic" as const,
+    model: "claude-3-5-haiku-latest",
+    systemPrompt: null,
+    userContext: null,
+    config: {},
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+
+  test("accepts single emoji", () => {
+    expect(() => companionSettingsSchema.parse({ ...base, emoji: "🔥" })).not.toThrow();
+  });
+
+  test("accepts ZWJ family emoji (multi-codepoint, length > 8)", () => {
+    expect(() => companionSettingsSchema.parse({ ...base, emoji: "👨‍👩‍👧‍👦" })).not.toThrow();
+  });
+
+  test("accepts flag emoji", () => {
+    expect(() => companionSettingsSchema.parse({ ...base, emoji: "🇧🇷" })).not.toThrow();
+  });
+
+  test("accepts skin-tone modifier emoji", () => {
+    expect(() => companionSettingsSchema.parse({ ...base, emoji: "👋🏿" })).not.toThrow();
+  });
+
+  test("accepts null", () => {
+    expect(() => companionSettingsSchema.parse({ ...base, emoji: null })).not.toThrow();
+  });
+
+  test("accepts undefined", () => {
+    expect(() => companionSettingsSchema.parse({ ...base, emoji: undefined })).not.toThrow();
+  });
+
+  test("rejects plain text", () => {
+    expect(() => companionSettingsSchema.parse({ ...base, emoji: "fire" })).toThrow();
+  });
+
+  test("rejects text mixed with emoji", () => {
+    expect(() => companionSettingsSchema.parse({ ...base, emoji: "hi🔥" })).toThrow();
+  });
+});
+
+describe("DEFAULT_SOUL identity agency", () => {
+  test("instructs companion to suggest names naturally", () => {
+    expect(DEFAULT_SOUL).toContain("suggest it naturally");
+  });
+
+  test("instructs companion to call update_identity", () => {
+    expect(DEFAULT_SOUL).toContain("update_identity");
+  });
+});
 
 describe("buildStablePrompt companion identity", () => {
   test("uses companion name and emoji in identity when provided", () => {

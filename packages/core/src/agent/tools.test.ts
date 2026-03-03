@@ -9,9 +9,9 @@ import {
   createTestVault,
   type TestVault,
 } from "../test-helpers";
-import { upsertCompanion } from "../vault/repositories/companion";
+import { getCompanionByUserId, upsertCompanion } from "../vault/repositories/companion";
 import { createQuest } from "../vault/repositories/quests";
-import { addXpToUser } from "../vault/repositories/users";
+import { addXpToUser, getUserById } from "../vault/repositories/users";
 
 let vault: TestVault;
 let userId: string;
@@ -884,5 +884,107 @@ describe("companion memory tools", () => {
 
     expect(replaced.updated).toBe(true);
     expect(Number(replaced.length)).toBeGreaterThan(0);
+  });
+});
+
+describe("update_identity", () => {
+  test("sets companion name only", async () => {
+    await upsertCompanion(vault.db, { userId });
+
+    const result = await call(tools.update_identity, { companionName: "Rex" });
+
+    expect(result.ok).toBe(true);
+    expect(result.updated).toEqual(['companion name → "Rex"']);
+    const companion = await getCompanionByUserId(vault.db, userId);
+    expect(companion?.name).toBe("Rex");
+  });
+
+  test("sets companion emoji only", async () => {
+    await upsertCompanion(vault.db, { userId });
+
+    const result = await call(tools.update_identity, { companionEmoji: "🔥" });
+
+    expect(result.ok).toBe(true);
+    const companion = await getCompanionByUserId(vault.db, userId);
+    expect(companion?.emoji).toBe("🔥");
+  });
+
+  test("sets user display name only", async () => {
+    const result = await call(tools.update_identity, { userName: "Jordan" });
+
+    expect(result.ok).toBe(true);
+    expect(result.updated).toEqual(['user name → "Jordan"']);
+    const user = await getUserById(vault.db, userId);
+    expect(user?.displayName).toBe("Jordan");
+  });
+
+  test("sets all three fields at once", async () => {
+    await upsertCompanion(vault.db, { userId });
+
+    const result = await call(tools.update_identity, {
+      companionName: "Volt",
+      companionEmoji: "⚡",
+      userName: "Sam",
+    });
+
+    expect(result.ok).toBe(true);
+    expect((result.updated as string[]).length).toBe(3);
+    const companion = await getCompanionByUserId(vault.db, userId);
+    expect(companion?.name).toBe("Volt");
+    expect(companion?.emoji).toBe("⚡");
+    const user = await getUserById(vault.db, userId);
+    expect(user?.displayName).toBe("Sam");
+  });
+
+  test("returns error when called with no fields", async () => {
+    const result = await call(tools.update_identity, {});
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe("No fields provided.");
+  });
+
+  test("returns error when companion does not exist", async () => {
+    // no upsertCompanion — companion row missing
+    const result = await call(tools.update_identity, { companionName: "Ghost" });
+
+    expect(result.ok).toBe(false);
+    expect(typeof result.error).toBe("string");
+  });
+
+  test("emoji-only update does not clobber existing name", async () => {
+    await upsertCompanion(vault.db, { userId, name: "Rex" });
+
+    await call(tools.update_identity, { companionEmoji: "🐉" });
+
+    const companion = await getCompanionByUserId(vault.db, userId);
+    expect(companion?.name).toBe("Rex");
+    expect(companion?.emoji).toBe("🐉");
+  });
+
+  test("re-calling with new name overwrites previous name", async () => {
+    await upsertCompanion(vault.db, { userId, name: "Rex" });
+
+    await call(tools.update_identity, { companionName: "Volt" });
+
+    const companion = await getCompanionByUserId(vault.db, userId);
+    expect(companion?.name).toBe("Volt");
+  });
+
+  test("accepts ZWJ family emoji (multi-codepoint)", async () => {
+    await upsertCompanion(vault.db, { userId });
+
+    const result = await call(tools.update_identity, { companionEmoji: "👨‍👩‍👧‍👦" });
+
+    expect(result.ok).toBe(true);
+    const companion = await getCompanionByUserId(vault.db, userId);
+    expect(companion?.emoji).toBe("👨‍👩‍👧‍👦");
+  });
+
+  test("accepts flag emoji", async () => {
+    await upsertCompanion(vault.db, { userId });
+
+    const result = await call(tools.update_identity, { companionEmoji: "🇧🇷" });
+
+    expect(result.ok).toBe(true);
   });
 });

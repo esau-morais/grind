@@ -12,7 +12,7 @@ export const companionSettingsSchema = z
     id: entityIdSchema,
     userId: entityIdSchema,
     name: z.string().max(64).nullish(),
-    emoji: z.string().emoji().max(8).nullish(),
+    emoji: z.string().emoji().nullish(),
     mode: companionModeSchema.default("suggest"),
     trustLevel: trustLevelSchema,
     trustScore: z.number().int().nonnegative(),

@@ -3888,7 +3888,7 @@ export function createGrindTools(ctx: ToolContext) {
           .max(64)
           .optional()
           .describe("Your new name (the companion's name)."),
-        companionEmoji: z.string().emoji().max(8).optional().describe("Your new emoji signature."),
+        companionEmoji: z.string().emoji().optional().describe("Your new emoji signature."),
         userName: z.string().min(1).max(128).optional().describe("The user's display name."),
       }),
       execute: async ({ companionName, companionEmoji, userName }) => {
