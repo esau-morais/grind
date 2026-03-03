@@ -1,6 +1,6 @@
 {
   "name": "@grindxp/cli",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "description": "Grind — a gamified productivity CLI. Track quests, earn XP, build streaks.",
   "keywords": [
     "cli",
@@ -31,7 +31,7 @@
     "access": "public"
   },
   "scripts": {
-    "start": "bun src/index.ts",
+    "start": "bun --env-file=../../.env src/index.ts",
     "build": "bun build-npm.ts && chmod +x dist/index.js",
     "build:binary": "bun build-binary.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
