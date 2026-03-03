@@ -64,11 +64,13 @@ import {
   listSignals,
   listSkillsByUser,
   updateCompanionInsight,
+  updateCompanionIdentity,
   updateCompanionMode,
   updateCompanionUserContext,
   updateForgeRule,
   updateQuest,
   updateQuestStatus,
+  updateUserDisplayName,
 } from "../vault/repositories";
 import type { VaultDb } from "../vault/types";
 import { xpForLevelThreshold } from "../xp/constants";
@@ -3872,6 +3874,44 @@ export function createGrindTools(ctx: ToolContext) {
         } finally {
           clearTimeout(timeoutId);
           proc.kill();
+        }
+      },
+    }),
+
+    update_identity: tool({
+      description:
+        "Persist a name or emoji for yourself, or update the user's display name. Call this when a name has been agreed upon — yours or theirs. All fields are optional; only provided fields are updated.",
+      inputSchema: z.object({
+        companionName: z
+          .string()
+          .min(1)
+          .max(64)
+          .optional()
+          .describe("Your new name (the companion's name)."),
+        companionEmoji: z.string().emoji().optional().describe("Your new emoji signature."),
+        userName: z.string().min(1).max(128).optional().describe("The user's display name."),
+      }),
+      execute: async ({ companionName, companionEmoji, userName }) => {
+        const updates: string[] = [];
+        try {
+          if (companionName !== undefined || companionEmoji !== undefined) {
+            await updateCompanionIdentity(ctx.db, ctx.userId, {
+              ...(companionName !== undefined ? { name: companionName } : {}),
+              ...(companionEmoji !== undefined ? { emoji: companionEmoji } : {}),
+            });
+            if (companionName !== undefined) updates.push(`companion name → "${companionName}"`);
+            if (companionEmoji !== undefined) updates.push(`companion emoji → "${companionEmoji}"`);
+          }
+          if (userName !== undefined) {
+            await updateUserDisplayName(ctx.db, ctx.userId, userName);
+            updates.push(`user name → "${userName}"`);
+          }
+          if (updates.length === 0) {
+            return { ok: false, error: "No fields provided." };
+          }
+          return { ok: true, updated: updates };
+        } catch (err) {
+          return { ok: false, error: err instanceof Error ? err.message : String(err) };
         }
       },
     }),

@@ -150,6 +150,24 @@ export async function updateCompanionMode(
   return updated;
 }
 
+export async function updateCompanionIdentity(
+  db: VaultDb,
+  userId: string,
+  values: { name?: string | null; emoji?: string | null },
+): Promise<CompanionSettingsRow> {
+  const [updated] = await db
+    .update(companionSettings)
+    .set({
+      ...(values.name !== undefined ? { name: values.name } : {}),
+      ...(values.emoji !== undefined ? { emoji: values.emoji } : {}),
+      updatedAt: Date.now(),
+    })
+    .where(eq(companionSettings.userId, userId))
+    .returning();
+  if (!updated) throw new Error("Companion not found. Run `grindxp init` first.");
+  return updated;
+}
+
 export async function deleteCompanionInsight(
   db: VaultDb,
   insightId: string,
