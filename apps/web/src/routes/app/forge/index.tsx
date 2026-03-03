@@ -6,10 +6,12 @@ import type { SimpleForgeRuleData, SimpleForgeRunData } from "#/server/data.func
 import { ForgeRuleRow } from "#/components/app/forge-rule-row";
 import { ForgeRunItem } from "#/components/app/forge-run-item";
 import { cn } from "#/lib/utils";
+import { RouteError } from "#/components/app/route-error";
 
 export const Route = createFileRoute("/app/forge/")({
   loader: () => getForgePageData(),
   component: ForgePage,
+  errorComponent: ({ error }) => <RouteError error={error} label="Forge" />,
 });
 
 function computeRunStats(
@@ -133,7 +135,12 @@ function ForgePage() {
     <div className="flex h-full flex-col">
       <header className="flex h-14 shrink-0 items-center border-b border-border bg-sidebar px-6">
         <div className="md:ml-8 flex flex-1 items-center gap-2">
-          <LightningIcon size={16} weight="fill" className="text-grind-orange" aria-hidden="true" />
+          <LightningIcon
+            size={16}
+            weight="duotone"
+            className="text-grind-orange"
+            aria-hidden="true"
+          />
           <h1 className="text-sm font-semibold text-foreground">Forge</h1>
           <span className="ml-1 font-mono text-xs text-muted-foreground">
             {rules.filter((r) => r.enabled).length}/{rules.length} active
@@ -166,13 +173,14 @@ function ForgePage() {
                 <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border py-12 text-center">
                   <LightningIcon
                     size={32}
+                    weight="duotone"
                     className="text-muted-foreground/30"
                     aria-hidden="true"
                   />
                   <div>
                     <p className="text-sm text-muted-foreground">No forge rules yet</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground/70">
-                      Ask the Companion to create automation rules
+                    <p className="mt-0.5 font-mono text-[10px] text-muted-foreground/70">
+                      grindxp forge create
                     </p>
                   </div>
                 </div>
