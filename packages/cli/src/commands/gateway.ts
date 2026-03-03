@@ -105,7 +105,12 @@ export async function gatewayServeCommand(ctx: CliContext, args: string[]): Prom
   async function registerResponder(
     channel: string,
     adapter: ChannelAdapter,
-    opts?: { trustedChatId?: string; onFirstContact?: (chatId: string) => void },
+    opts?: {
+      allowedChatIds?: string[];
+      allowedSenderIds?: string[];
+      onFirstContact?: (chatId: string) => void;
+      onMessageAllowed?: (chatId: string) => void;
+    },
   ): Promise<void> {
     adaptersByChannel.set(channel, adapter);
     const responder = await createChatResponder({
@@ -121,40 +126,63 @@ export async function gatewayServeCommand(ctx: CliContext, args: string[]): Prom
       },
       adapter,
       onWarn,
-      ...(opts?.trustedChatId ? { trustedChatId: opts.trustedChatId } : {}),
+      ...(opts?.allowedChatIds ? { allowedChatIds: opts.allowedChatIds } : {}),
+      ...(opts?.allowedSenderIds ? { allowedSenderIds: opts.allowedSenderIds } : {}),
       ...(opts?.onFirstContact ? { onFirstContact: opts.onFirstContact } : {}),
+      ...(opts?.onMessageAllowed ? { onMessageAllowed: opts.onMessageAllowed } : {}),
     });
     responders.set(channel, responder);
     await drainPendingEvents(channel);
   }
 
-  function persistWhatsAppDefaultChatId(chatId: string): void {
+  function persistTelegramAllowedChatId(chatId: string): void {
     const onDisk = readGrindConfig();
     if (!onDisk?.gateway) return;
-    if (onDisk.gateway.whatsAppDefaultChatId === chatId) return;
+    const existing = onDisk.gateway.telegramAllowedChatIds ?? [];
+    if (existing.includes(chatId)) return;
     writeGrindConfig({
       ...onDisk,
-      gateway: { ...onDisk.gateway, whatsAppDefaultChatId: chatId },
+      gateway: {
+        ...onDisk.gateway,
+        telegramAllowedChatIds: [...existing, chatId],
+        ...(onDisk.gateway.telegramDefaultChatId ? {} : { telegramDefaultChatId: chatId }),
+      },
     });
-    onWarn(`Auto-set whatsAppDefaultChatId to ${chatId}.`);
+    onWarn(`Telegram: trusted ${chatId}.`);
+  }
+
+  function persistWhatsAppAllowedChatId(chatId: string): void {
+    const onDisk = readGrindConfig();
+    if (!onDisk?.gateway) return;
+    const existing = onDisk.gateway.whatsAppAllowedChatIds ?? [];
+    if (existing.includes(chatId)) return;
+    writeGrindConfig({
+      ...onDisk,
+      gateway: {
+        ...onDisk.gateway,
+        whatsAppAllowedChatIds: [...existing, chatId],
+        ...(onDisk.gateway.whatsAppDefaultChatId ? {} : { whatsAppDefaultChatId: chatId }),
+      },
+    });
+    onWarn(`WhatsApp: trusted ${chatId}.`);
   }
 
   function persistDiscordDefaultChatId(chatId: string): void {
     const onDisk = readGrindConfig();
     if (!onDisk?.gateway) return;
-    if (onDisk.gateway.discordDefaultChatId === chatId) return;
-    writeGrindConfig({
-      ...onDisk,
-      gateway: { ...onDisk.gateway, discordDefaultChatId: chatId },
-    });
-    onWarn(`Auto-set discordDefaultChatId to ${chatId}.`);
+    if (onDisk.gateway.discordDefaultChatId) return;
+    writeGrindConfig({ ...onDisk, gateway: { ...onDisk.gateway, discordDefaultChatId: chatId } });
   }
 
   // --- Telegram ---
   if (cfg.telegramBotToken) {
     const telegramAdapter = await createTelegramAdapter({ token: cfg.telegramBotToken });
+    const telegramAllowed =
+      cfg.telegramAllowedChatIds ?? (cfg.telegramDefaultChatId ? [cfg.telegramDefaultChatId] : []);
     await registerResponder("telegram", telegramAdapter, {
-      ...(cfg.telegramDefaultChatId ? { trustedChatId: cfg.telegramDefaultChatId } : {}),
+      ...(telegramAllowed.length > 0
+        ? { allowedChatIds: telegramAllowed }
+        : { onFirstContact: persistTelegramAllowedChatId }),
     });
     p.log.message("Telegram chat responder: enabled");
   }
@@ -165,10 +193,12 @@ export async function gatewayServeCommand(ctx: CliContext, args: string[]): Prom
       phoneNumberId: cfg.whatsAppPhoneNumberId,
       accessToken: cfg.whatsAppAccessToken,
     });
+    const whatsAppAllowed =
+      cfg.whatsAppAllowedChatIds ?? (cfg.whatsAppDefaultChatId ? [cfg.whatsAppDefaultChatId] : []);
     await registerResponder("whatsapp", whatsAppCloudAdapter, {
-      ...(cfg.whatsAppDefaultChatId
-        ? { trustedChatId: cfg.whatsAppDefaultChatId }
-        : { onFirstContact: persistWhatsAppDefaultChatId }),
+      ...(whatsAppAllowed.length > 0
+        ? { allowedChatIds: whatsAppAllowed }
+        : { onFirstContact: persistWhatsAppAllowedChatId }),
     });
     p.log.message("WhatsApp Cloud API responder: enabled");
   }
@@ -177,9 +207,10 @@ export async function gatewayServeCommand(ctx: CliContext, args: string[]): Prom
   if (cfg.discordBotToken) {
     const discordAdapter = createDiscordAdapter({ botToken: cfg.discordBotToken });
     await registerResponder("discord", discordAdapter, {
-      ...(cfg.discordDefaultChatId
-        ? { trustedChatId: cfg.discordDefaultChatId }
-        : { onFirstContact: persistDiscordDefaultChatId }),
+      ...(cfg.discordAllowedSenderIds?.length
+        ? { allowedSenderIds: cfg.discordAllowedSenderIds }
+        : {}),
+      onMessageAllowed: persistDiscordDefaultChatId,
     });
     p.log.message("Discord chat responder: enabled");
   }
@@ -256,9 +287,7 @@ export async function gatewayServeCommand(ctx: CliContext, args: string[]): Prom
 
   // --- WhatsApp Web (Baileys) listener ---
   const shouldRunWhatsAppWebListener =
-    cfg.whatsAppMode === "qr-link" &&
-    Boolean(cfg.whatsAppLinkedAt) &&
-    (cfg.whatsAppPairingMethod === "qr" || cfg.whatsAppPairingMethod === "pairing-code");
+    cfg.whatsAppMode === "qr-link" && Boolean(cfg.whatsAppLinkedAt);
 
   let whatsAppWebListener: Awaited<ReturnType<typeof startWhatsAppWebListener>> | null = null;
 
@@ -275,11 +304,15 @@ export async function gatewayServeCommand(ctx: CliContext, args: string[]): Prom
     };
 
     const adapter = createWhatsAppWebAdapter({ sendMessage });
+    const whatsAppWebAllowed =
+      cfg.whatsAppAllowedChatIds ?? (cfg.whatsAppDefaultChatId ? [cfg.whatsAppDefaultChatId] : []);
     await registerResponder("whatsapp-web", adapter, {
-      ...(cfg.whatsAppDefaultChatId
-        ? { trustedChatId: cfg.whatsAppDefaultChatId }
-        : { onFirstContact: persistWhatsAppDefaultChatId }),
+      ...(whatsAppWebAllowed.length > 0
+        ? { allowedChatIds: whatsAppWebAllowed }
+        : { onFirstContact: persistWhatsAppAllowedChatId }),
     });
+    // Alias so the AI's send_channel_message tool (which always uses "whatsapp") routes correctly.
+    adaptersByChannel.set("whatsapp", adapter);
 
     p.log.message("WhatsApp Web listener: enabled (QR-link mode)");
   } else if (cfg.whatsAppMode === "qr-link") {

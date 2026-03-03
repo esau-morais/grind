@@ -33,13 +33,16 @@ const gatewayConfigSchema = z
     token: z.string().min(1),
     telegramBotToken: z.string().min(1).optional(),
     telegramDefaultChatId: z.string().min(1).optional(),
+    telegramAllowedChatIds: z.array(z.string().min(1)).optional(),
     telegramWebhookSecret: z.string().min(1).optional(),
     telegramWebhookPath: z.string().min(1).optional(),
     discordBotToken: z.string().min(1).optional(),
     discordDefaultChatId: z.string().min(1).optional(),
+    discordAllowedSenderIds: z.array(z.string().min(1)).optional(),
     discordPublicKey: z.string().min(1).optional(),
     discordWebhookPath: z.string().min(1).optional(),
     whatsAppDefaultChatId: z.string().min(1).optional(),
+    whatsAppAllowedChatIds: z.array(z.string().min(1)).optional(),
     whatsAppWebhookPath: z.string().min(1).optional(),
     whatsAppMode: z.enum(["qr-link", "cloud-api"]).optional(),
     whatsAppLinkedAt: z.number().int().positive().optional(),
@@ -115,6 +118,37 @@ export function getServiceStatePath(): string {
 
 export function getOAuthPendingPath(): string {
   return join(getGrindHome(), "oauth-pending.json");
+}
+
+export function getContactsPath(): string {
+  return join(getGrindHome(), "contacts.json");
+}
+
+export interface StoredContact {
+  /** Display name from the user's phone contacts */
+  name: string;
+  /** Canonical WhatsApp JID — always @s.whatsapp.net when phone is known, @lid as fallback */
+  whatsappId: string;
+  /** Contact's own WA display name (push name) */
+  notify?: string;
+  /** Linked Identity ID (@lid) — cross-reference when whatsappId is @s.whatsapp.net */
+  lid?: string;
+}
+
+export function readContacts(): StoredContact[] {
+  const path = getContactsPath();
+  if (!existsSync(path)) return [];
+  try {
+    return JSON.parse(readFileSync(path, "utf-8")) as StoredContact[];
+  } catch {
+    return [];
+  }
+}
+
+export function writeContacts(contacts: StoredContact[]): void {
+  const path = getContactsPath();
+  writeFileSync(path, JSON.stringify(contacts, null, 2));
+  chmodSync(path, 0o600);
 }
 
 export function getMigrationsPath(): string {

@@ -98,13 +98,20 @@ function ev(
   };
 }
 
-function msg(chatId: string, text: string, extra: Record<string, unknown> = {}, dk?: string) {
+function msg(
+  chatId: string,
+  text: string,
+  extra: Record<string, unknown> = {},
+  dk?: string,
+  senderId?: string,
+) {
   return ev(
     {
       channel: "test-channel",
       eventName: "message.received",
       chatId,
       text,
+      ...(senderId ? { senderId } : {}),
       ...extra,
       ...(dk ? { messageId: dk } : {}),
     },
@@ -150,6 +157,7 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
+      allowedChatIds: ["c1"],
     });
     await r!.handle(msg("c1", "hi"));
     expect(a.sentTexts.length).toBe(1);
@@ -165,6 +173,7 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
+      allowedChatIds: ["42"],
     });
     await r!.handle(msg("42", "x"));
     const cs = await listConversations(vault.db, user.id, 10);
@@ -179,6 +188,7 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
+      allowedChatIds: ["55"],
     });
     await r!.handle(msg("55", "a", {}, "d1"));
     await r!.handle(msg("55", "b", {}, "d2"));
@@ -195,6 +205,7 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
+      allowedChatIds: ["c1"],
     });
     await r!.handle(msg("c1", "first", {}, "same"));
     await r!.handle(msg("c1", "dup", {}, "same"));
@@ -209,6 +220,7 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
+      allowedChatIds: ["c1"],
     });
     await r!.handle(msg("c1", "a"));
     await r!.handle(msg("c1", "b"));
@@ -223,6 +235,7 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
+      allowedChatIds: ["c1"],
     });
     const b64 =
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -242,6 +255,7 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
+      allowedChatIds: ["c1"],
     });
     await r!.handle(msg("c1", "photo", { inboundMedia: { fileId: "f1", mime: "image/jpeg" } }));
     expect(a.fetchedMedia.length).toBe(1);
@@ -256,6 +270,7 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
+      allowedChatIds: ["c1"],
     });
     await r!.handle(ev({ channel: "test-channel", eventName: "message.status", chatId: "c1" }));
     expect(a.sentTexts.length).toBe(0);
@@ -269,6 +284,7 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
+      allowedChatIds: ["c1"],
     });
     await r!.handle(ev({ channel: "test-channel", eventName: "message.received" }));
     expect(a.sentTexts.length).toBe(0);
@@ -288,6 +304,7 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
+      allowedChatIds: ["c1"],
       onWarn: (m) => warns.push(m),
     });
     await r!.handle(msg("c1", "hi"));
@@ -310,6 +327,7 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
+      allowedChatIds: ["c1"],
     });
     await r!.handle(msg("c1", "x"));
     expect(a.sentTexts[0]!.text).toBe("Got it.");
@@ -333,6 +351,7 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
+      allowedChatIds: ["s"],
     });
     await Promise.all([r!.handle(msg("s", "a", {}, "k1")), r!.handle(msg("s", "b", {}, "k2"))]);
     expect(order).toEqual([1, 2]);
@@ -347,6 +366,7 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
+      allowedChatIds: ["c1"],
     });
     await r!.handle(msg("c1", "user text"));
     const cs = await listConversations(vault.db, user.id, 10);
@@ -367,6 +387,7 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
+      allowedChatIds: ["c1"],
     });
     const b64 =
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
@@ -374,9 +395,9 @@ describe("chat responder", () => {
     expect(a.sentTexts.length).toBe(1);
   });
 
-  // --- trusted chat guard ---
+  // --- allowlist guard ---
 
-  test("trustedChatId set: only trusted chat gets reply", async () => {
+  test("empty allowlist, no onFirstContact: all messages rejected", async () => {
     const a = mockAdapter();
     const r = await createChatResponder({
       db: vault.db,
@@ -384,15 +405,29 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
-      trustedChatId: "c1",
     });
-    await r!.handle(msg("c2", "intruder"));
-    await r!.handle(msg("c1", "owner"));
+    await r!.handle(msg("c1", "hi", {}, "d1"));
+    await r!.handle(msg("c2", "hi", {}, "d2"));
+    expect(a.sentTexts.length).toBe(0);
+  });
+
+  test("allowedChatIds: only listed chats get a reply, others silently dropped", async () => {
+    const a = mockAdapter();
+    const r = await createChatResponder({
+      db: vault.db,
+      userId: user.id,
+      config: cfg(user.id),
+      gateway: gw,
+      adapter: a,
+      allowedChatIds: ["c1"],
+    });
+    await r!.handle(msg("c2", "intruder", {}, "d1"));
+    await r!.handle(msg("c1", "owner", {}, "d2"));
     expect(a.sentTexts.length).toBe(1);
     expect(a.sentTexts[0]!.chatId).toBe("c1");
   });
 
-  test("trustedChatId set: untrusted chat silently ignored, no reply sent", async () => {
+  test("allowedChatIds: multiple entries — all listed chats get replies", async () => {
     const a = mockAdapter();
     const r = await createChatResponder({
       db: vault.db,
@@ -400,13 +435,65 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
-      trustedChatId: "owner",
+      allowedChatIds: ["c1", "c2"],
     });
-    await r!.handle(msg("stranger", "hello?"));
+    await r!.handle(msg("c1", "hi", {}, "d1"));
+    await r!.handle(msg("c2", "hey", {}, "d2"));
+    await r!.handle(msg("c3", "spam", {}, "d3"));
+    expect(a.sentTexts.map((s) => s.chatId)).toEqual(["c1", "c2"]);
+  });
+
+  test("allowedSenderIds: trusted sender passes in any chatId, others dropped", async () => {
+    const a = mockAdapter();
+    const r = await createChatResponder({
+      db: vault.db,
+      userId: user.id,
+      config: cfg(user.id),
+      gateway: gw,
+      adapter: a,
+      allowedSenderIds: ["owner-user-id"],
+    });
+    await r!.handle(msg("guild-channel", "hello", {}, "d1", "owner-user-id"));
+    await r!.handle(msg("guild-channel", "hi", {}, "d2", "random-user-id"));
+    await r!.handle(msg("dm-channel", "hey", {}, "d3", "owner-user-id"));
+    expect(a.sentTexts.map((s) => s.chatId)).toEqual(["guild-channel", "dm-channel"]);
+  });
+
+  test("allowedSenderIds: message with no senderId is rejected", async () => {
+    const a = mockAdapter();
+    const r = await createChatResponder({
+      db: vault.db,
+      userId: user.id,
+      config: cfg(user.id),
+      gateway: gw,
+      adapter: a,
+      allowedSenderIds: ["owner-user-id"],
+    });
+    await r!.handle(msg("c1", "no sender"));
     expect(a.sentTexts.length).toBe(0);
   });
 
-  test("no trustedChatId: locks to first chatter, fires onFirstContact once", async () => {
+  test("allowedChatIds + allowedSenderIds: either match is sufficient", async () => {
+    const a = mockAdapter();
+    const r = await createChatResponder({
+      db: vault.db,
+      userId: user.id,
+      config: cfg(user.id),
+      gateway: gw,
+      adapter: a,
+      allowedChatIds: ["trusted-channel"],
+      allowedSenderIds: ["trusted-user"],
+    });
+    // passes via chatId match (sender unknown)
+    await r!.handle(msg("trusted-channel", "a", {}, "d1"));
+    // passes via senderId match (channel not in allowedChatIds)
+    await r!.handle(msg("other-channel", "b", {}, "d2", "trusted-user"));
+    // dropped — neither matches
+    await r!.handle(msg("other-channel", "c", {}, "d3", "untrusted-user"));
+    expect(a.sentTexts.length).toBe(2);
+  });
+
+  test("onFirstContact: locks to first chat, fires callback once, second chat dropped", async () => {
     const a = mockAdapter();
     const contacts: string[] = [];
     const r = await createChatResponder({
@@ -421,11 +508,10 @@ describe("chat responder", () => {
     await r!.handle(msg("c2", "intruder", {}, "d2"));
     await r!.handle(msg("c1", "also me", {}, "d3"));
     expect(contacts).toEqual(["c1"]);
-    // c2 silently ignored, c1 gets both replies
     expect(a.sentTexts.map((s) => s.chatId)).toEqual(["c1", "c1"]);
   });
 
-  test("no trustedChatId: multiple messages from same first chat all get replies", async () => {
+  test("onFirstContact: subsequent messages from the first chat all get replies", async () => {
     const a = mockAdapter();
     const r = await createChatResponder({
       db: vault.db,
@@ -433,6 +519,7 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
+      onFirstContact: () => {},
     });
     await r!.handle(msg("c1", "a", {}, "d1"));
     await r!.handle(msg("c1", "b", {}, "d2"));
@@ -448,24 +535,45 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
-      trustedChatId: "c1",
+      allowedChatIds: ["c1"],
     });
-    // callback_received from c2 (untrusted) — should not answer
-    const callbackEvent = ev({
-      channel: "test-channel",
-      eventName: "callback.received",
-      chatId: "c2",
-      senderId: "u2",
-      callbackData: "grindperm:some-id:once",
-      callbackQueryId: "q2",
+    await r!.handle(
+      ev({
+        channel: "test-channel",
+        eventName: "callback.received",
+        chatId: "c2",
+        senderId: "u2",
+        callbackData: "grindperm:some-id:once",
+        callbackQueryId: "q2",
+      }),
+    );
+    expect(a.sentTexts.length).toBe(0);
+  });
+
+  test("permission callback from untrusted sender is silently ignored", async () => {
+    const a = mockAdapter();
+    const r = await createChatResponder({
+      db: vault.db,
+      userId: user.id,
+      config: cfg(user.id),
+      gateway: gw,
+      adapter: a,
+      allowedSenderIds: ["owner"],
     });
-    await r!.handle(callbackEvent);
-    // no interaction with adapter expected (answerPermissionCallback not called)
+    await r!.handle(
+      ev({
+        channel: "test-channel",
+        eventName: "callback.received",
+        chatId: "any-channel",
+        senderId: "not-owner",
+        callbackData: "grindperm:some-id:once",
+        callbackQueryId: "q1",
+      }),
+    );
     expect(a.sentTexts.length).toBe(0);
   });
 
   test("whatsapp: from field used as chatId when chatId absent", async () => {
-    // WhatsApp Cloud normalizer sets payload.from, not payload.chatId
     const a = mockAdapter("whatsapp");
     const r = await createChatResponder({
       db: vault.db,
@@ -473,21 +581,22 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
-      trustedChatId: "5511999990000",
+      allowedChatIds: ["5511999990000"],
     });
-    const waEvent = ev({
-      channel: "whatsapp",
-      eventName: "message.received",
-      from: "5511999990000",
-      text: "hello",
-      messageId: "wamid.1",
-    });
-    await r!.handle(waEvent);
+    await r!.handle(
+      ev({
+        channel: "whatsapp",
+        eventName: "message.received",
+        from: "5511999990000",
+        text: "hello",
+        messageId: "wamid.1",
+      }),
+    );
     expect(a.sentTexts.length).toBe(1);
     expect(a.sentTexts[0]!.chatId).toBe("5511999990000");
   });
 
-  test("whatsapp: message from untrusted number silently dropped", async () => {
+  test("whatsapp: message from unlisted number silently dropped", async () => {
     const a = mockAdapter("whatsapp");
     const r = await createChatResponder({
       db: vault.db,
@@ -495,16 +604,17 @@ describe("chat responder", () => {
       config: cfg(user.id),
       gateway: gw,
       adapter: a,
-      trustedChatId: "5511999990000",
+      allowedChatIds: ["5511999990000"],
     });
-    const waEvent = ev({
-      channel: "whatsapp",
-      eventName: "message.received",
-      from: "5511888880000",
-      text: "spam",
-      messageId: "wamid.2",
-    });
-    await r!.handle(waEvent);
+    await r!.handle(
+      ev({
+        channel: "whatsapp",
+        eventName: "message.received",
+        from: "5511888880000",
+        text: "spam",
+        messageId: "wamid.2",
+      }),
+    );
     expect(a.sentTexts.length).toBe(0);
   });
 });

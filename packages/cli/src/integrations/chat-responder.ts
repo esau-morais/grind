@@ -44,7 +44,9 @@ interface ChatResponderOptions {
   adapter: ChannelAdapter;
   onWarn?: (message: string) => void;
   onFirstContact?: (chatId: string) => void;
-  trustedChatId?: string;
+  onMessageAllowed?: (chatId: string) => void;
+  allowedChatIds?: string[];
+  allowedSenderIds?: string[];
 }
 
 export interface ChatResponder {
@@ -61,19 +63,34 @@ export async function createChatResponder(
 
   const model = await resolveModel(options.config.ai);
   const provider = options.config.ai.provider;
+
   const alwaysAllowedTools = new Set(await getToolPermissions(options.db, options.userId));
   const pendingPermissions = new Map<string, PendingPermission>();
 
   const conversationByChatId = new Map<string, string>();
   const pendingByChatId = new Map<string, Promise<void>>();
   const seenDedupeKeys = new Map<string, number>();
-  let trustedChatId = options.trustedChatId ?? null;
+  const allowedChatIds = new Set(options.allowedChatIds ?? []);
+  const allowedSenderIds = new Set(options.allowedSenderIds ?? []);
+
+  function isAllowed(chatId: string, senderId: string | null): boolean {
+    if (allowedChatIds.size > 0 && allowedChatIds.has(chatId)) return true;
+    if (allowedSenderIds.size > 0 && senderId && allowedSenderIds.has(senderId)) return true;
+    if (
+      allowedChatIds.size === 0 &&
+      allowedSenderIds.size === 0 &&
+      options.onFirstContact !== undefined
+    )
+      return true;
+    return false;
+  }
 
   return {
     handle: async (event) => {
       if (isPermissionCallback(event.normalized)) {
         const callbackChatId = extractChatId(event.normalized);
-        if (trustedChatId && callbackChatId && callbackChatId !== trustedChatId) return;
+        const callbackSenderId = extractSenderId(event.normalized);
+        if (callbackChatId && !isAllowed(callbackChatId, callbackSenderId)) return;
         await handlePermissionCallback({
           db: options.db,
           userId: options.userId,
@@ -89,12 +106,16 @@ export async function createChatResponder(
       const queueKey = extractChatId(event.normalized);
       if (!queueKey) return;
 
-      if (trustedChatId && queueKey !== trustedChatId) return;
+      const senderId = extractSenderId(event.normalized);
 
-      if (!trustedChatId) {
-        trustedChatId = queueKey;
+      if (!isAllowed(queueKey, senderId)) return;
+
+      if (allowedChatIds.size === 0 && allowedSenderIds.size === 0) {
+        allowedChatIds.add(queueKey);
         options.onFirstContact?.(queueKey);
       }
+
+      options.onMessageAllowed?.(queueKey);
 
       const chain = pendingByChatId.get(queueKey) ?? Promise.resolve();
       const next = chain
@@ -551,4 +572,9 @@ function pruneSeenKeys(map: Map<string, number>): void {
 function extractChatId(normalized: NormalizedGatewayEvent): string | null {
   const p = normalized.forgeEvent.payload;
   return asString(p.chatId) ?? asString(p.from);
+}
+
+function extractSenderId(normalized: NormalizedGatewayEvent): string | null {
+  const p = normalized.forgeEvent.payload;
+  return asString(p.senderId);
 }

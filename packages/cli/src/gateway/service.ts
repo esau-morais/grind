@@ -25,15 +25,18 @@ export interface GatewayResolvedConfig {
   token: string;
   telegramBotToken?: string;
   telegramDefaultChatId?: string;
+  telegramAllowedChatIds?: string[];
   whatsAppMode?: "qr-link" | "cloud-api";
   whatsAppLinkedAt?: number;
   whatsAppPairingMethod?: "qr" | "pairing-code";
   whatsAppPairingPhone?: string;
   whatsAppDefaultChatId?: string;
+  whatsAppAllowedChatIds?: string[];
   telegramWebhookSecret?: string;
   telegramWebhookPath?: string;
   discordBotToken?: string;
   discordDefaultChatId?: string;
+  discordAllowedSenderIds?: string[];
   discordPublicKey?: string;
   discordWebhookPath?: string;
   whatsAppWebhookPath?: string;
@@ -112,10 +115,16 @@ export function resolveGatewayConfig(
     token,
     ...pick("telegramBotToken", overrides?.telegramBotToken, base?.telegramBotToken),
     ...pick("telegramDefaultChatId", overrides?.telegramDefaultChatId, base?.telegramDefaultChatId),
+    ...(base?.telegramAllowedChatIds?.length
+      ? { telegramAllowedChatIds: base.telegramAllowedChatIds }
+      : {}),
     ...pick("telegramWebhookSecret", overrides?.telegramWebhookSecret, base?.telegramWebhookSecret),
     ...pick("telegramWebhookPath", overrides?.telegramWebhookPath, base?.telegramWebhookPath),
     ...pick("discordBotToken", overrides?.discordBotToken, base?.discordBotToken),
     ...pick("discordDefaultChatId", overrides?.discordDefaultChatId, base?.discordDefaultChatId),
+    ...(base?.discordAllowedSenderIds?.length
+      ? { discordAllowedSenderIds: base.discordAllowedSenderIds }
+      : {}),
     ...pick("discordPublicKey", overrides?.discordPublicKey, base?.discordPublicKey),
     ...pick("discordWebhookPath", overrides?.discordWebhookPath, base?.discordWebhookPath),
     ...pick("whatsAppMode", overrides?.whatsAppMode, base?.whatsAppMode),
@@ -123,6 +132,9 @@ export function resolveGatewayConfig(
     ...pick("whatsAppPairingMethod", overrides?.whatsAppPairingMethod, base?.whatsAppPairingMethod),
     ...pick("whatsAppPairingPhone", overrides?.whatsAppPairingPhone, base?.whatsAppPairingPhone),
     ...pick("whatsAppDefaultChatId", overrides?.whatsAppDefaultChatId, base?.whatsAppDefaultChatId),
+    ...(base?.whatsAppAllowedChatIds?.length
+      ? { whatsAppAllowedChatIds: base.whatsAppAllowedChatIds }
+      : {}),
     ...pick("whatsAppWebhookPath", overrides?.whatsAppWebhookPath, base?.whatsAppWebhookPath),
     ...pick("whatsAppVerifyToken", overrides?.whatsAppVerifyToken, base?.whatsAppVerifyToken),
     ...pick("whatsAppAppSecret", overrides?.whatsAppAppSecret, base?.whatsAppAppSecret),

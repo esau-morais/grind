@@ -7,6 +7,7 @@ import {
   GOOGLE_OAUTH_KEY,
   buildGoogleOAuthConfig,
   GRIND_GOOGLE_CLIENT_ID,
+  readGrindConfig,
   removeOAuthToken,
   saveOAuthToken,
   startOAuthFlow,
@@ -18,6 +19,12 @@ import {
 
 import type { CliContext } from "../context";
 import { linkWhatsAppAccount } from "../integrations/whatsapp-link";
+import {
+  readGatewayProcessState,
+  startManagedGateway,
+  stopManagedGateway,
+} from "../gateway/service";
+import { startOAuthProxy } from "./setup";
 
 export type ChannelProvider = "telegram" | "discord" | "whatsapp";
 export type ServiceProvider = "google";
@@ -37,6 +44,7 @@ interface ChannelWizardResult {
   gateway: GatewayConfig;
   changed: boolean;
   cancelled: boolean;
+  gatewayWasRunning?: boolean;
 }
 
 function generateSecretToken(): string {
@@ -91,7 +99,7 @@ export async function integrationsListCommand(ctx: CliContext): Promise<void> {
     `  Gateway: ${gateway ? `http://${gateway.host}:${gateway.port}/` : "not configured"} (${gateway?.enabled ? "enabled" : "disabled"})`,
   );
   p.log.message(`  Telegram : ${gateway?.telegramBotToken ? "configured" : "not configured"}`);
-  p.log.message(`  Discord  : ${gateway?.discordPublicKey ? "configured" : "not configured"}`);
+  p.log.message(`  Discord  : ${gateway?.discordBotToken ? "configured" : "not configured"}`);
   p.log.message(`  WhatsApp : ${describeWhatsApp(gateway)}`);
 
   p.log.step("Services (data)");
@@ -250,39 +258,53 @@ async function runGoogleWizard(
   const clientId = flags.clientId ?? existingConfig?.clientId ?? GRIND_GOOGLE_CLIENT_ID;
   const clientSecret = flags.clientSecret ?? existingConfig?.clientSecret;
   const config = buildGoogleOAuthConfig(clientId, gmailEnabled, clientSecret);
+
+  let resolveCode!: (code: string) => void;
+  let rejectCode!: (err: Error) => void;
+  const codePromise = new Promise<string>((res, rej) => {
+    resolveCode = res;
+    rejectCode = rej;
+  });
+
+  const proxy = startOAuthProxy(
+    config,
+    (code) => resolveCode(code),
+    (error) => rejectCode(new Error(`Authorization failed: ${error}`)),
+  );
+
   const flow = startOAuthFlow("google-services", config);
 
-  if (flow.method !== "callback") {
-    p.log.error("Unexpected OAuth flow type.");
-    return { services: existingServices ?? {}, cancelled: true };
-  }
+  p.log.info(`Open this URL in your browser:\n  ${flow.authUrl}`);
 
-  const completion = flow.complete();
-
-  p.log.step("Opening browser for Google authorization...");
-  p.log.message(`If the browser does not open, visit:\n  ${flow.authUrl}`);
-
+  // Best-effort browser open — silent on any failure (headless, no binary, no display).
+  const openCmd =
+    process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
   try {
-    const openCmd =
-      process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
-    Bun.spawn([openCmd, flow.authUrl], { stdout: "ignore", stderr: "ignore" });
-  } catch {
-    // Non-fatal — user can open the URL manually
-  }
+    Bun.spawn([openCmd, flow.authUrl], { stdio: ["ignore", "ignore", "ignore"] });
+  } catch {}
 
   const spin = spinner();
-  spin.start("Waiting for authorization (120s timeout)...");
+  spin.start("Waiting for authorization…");
 
-  let token: Awaited<ReturnType<typeof flow.complete>>;
+  const timeoutId = setTimeout(
+    () => rejectCode(new Error("Authorization timed out after 120s.")),
+    120_000,
+  );
+
+  let token: Awaited<ReturnType<typeof flow.completeWithCode>>;
   try {
-    token = await completion;
+    const code = await codePromise;
+    clearTimeout(timeoutId);
+    token = await flow.completeWithCode(code);
+    spin.stop("Authorized.");
   } catch (err) {
+    clearTimeout(timeoutId);
     spin.error("Authorization failed.");
     p.log.error(err instanceof Error ? err.message : String(err));
     return { services: existingServices ?? {}, cancelled: true };
+  } finally {
+    proxy.stop();
   }
-
-  spin.stop("Authorized.");
 
   let email: string | undefined;
   try {
@@ -393,6 +415,12 @@ async function connectChannel(
 
   p.log.success("Integration saved.");
   p.note(buildWebhookNote(result.gateway), "Webhook Paths");
+
+  if (result.gatewayWasRunning) {
+    p.log.step("Restarting gateway...");
+    const freshConfig = readGrindConfig();
+    if (freshConfig) await startManagedGateway(freshConfig);
+  }
 }
 
 // ── Channel wizard ────────────────────────────────────────────────────────────
@@ -419,8 +447,19 @@ export function ensureGatewayDefaults(current?: GatewayConfig): GatewayConfig {
     ...(current.telegramDefaultChatId
       ? { telegramDefaultChatId: current.telegramDefaultChatId }
       : {}),
+    ...(current.telegramAllowedChatIds?.length
+      ? { telegramAllowedChatIds: current.telegramAllowedChatIds }
+      : {}),
+    ...(current.discordBotToken ? { discordBotToken: current.discordBotToken } : {}),
+    ...(current.discordDefaultChatId ? { discordDefaultChatId: current.discordDefaultChatId } : {}),
+    ...(current.discordAllowedSenderIds?.length
+      ? { discordAllowedSenderIds: current.discordAllowedSenderIds }
+      : {}),
     ...(current.discordPublicKey ? { discordPublicKey: current.discordPublicKey } : {}),
     ...(current.discordWebhookPath ? { discordWebhookPath: current.discordWebhookPath } : {}),
+    ...(current.whatsAppAllowedChatIds?.length
+      ? { whatsAppAllowedChatIds: current.whatsAppAllowedChatIds }
+      : {}),
     ...(current.whatsAppWebhookPath ? { whatsAppWebhookPath: current.whatsAppWebhookPath } : {}),
     ...(current.whatsAppMode ? { whatsAppMode: current.whatsAppMode } : {}),
     ...(current.whatsAppLinkedAt ? { whatsAppLinkedAt: current.whatsAppLinkedAt } : {}),
@@ -514,10 +553,31 @@ async function runChannelWizard(
     });
     if (publicKey.cancelled) return { gateway, changed: false, cancelled: true };
 
+    let discordAllowedSenderIds = gateway.discordAllowedSenderIds ?? [];
+
+    if (botToken.value && discordAllowedSenderIds.length === 0) {
+      try {
+        const res = await fetch("https://discord.com/api/v10/applications/@me", {
+          headers: { Authorization: `Bot ${botToken.value}` },
+        });
+        if (res.ok) {
+          const app = (await res.json()) as {
+            owner?: { id?: string };
+            team?: { owner_user_id?: string };
+          };
+          const ownerId = app.owner?.id ?? app.team?.owner_user_id;
+          if (ownerId) discordAllowedSenderIds = [ownerId];
+        }
+      } catch {
+        // non-fatal — allowlist can be populated later via companion chat
+      }
+    }
+
     return {
       gateway: {
         ...gateway,
         discordBotToken: botToken.value,
+        ...(discordAllowedSenderIds.length ? { discordAllowedSenderIds } : {}),
         ...(publicKey.value ? { discordPublicKey: publicKey.value } : {}),
       },
       changed: true,
@@ -556,6 +616,22 @@ async function runChannelWizard(
     const method = pairingMethod === "pairing-code" ? "pairing-code" : "qr";
     let linkAt: number | undefined;
 
+    const gatewayWasRunning = (() => {
+      const state = readGatewayProcessState();
+      if (!state) return false;
+      try {
+        process.kill(state.pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+
+    if (gatewayWasRunning) {
+      p.log.step("Stopping gateway to avoid connection conflict...");
+      await stopManagedGateway();
+    }
+
     while (!linkAt) {
       p.log.step("Starting WhatsApp link session...");
       const link = await linkWhatsAppAccount({
@@ -570,7 +646,10 @@ async function runChannelWizard(
       }
 
       p.log.error(link.error ?? "WhatsApp link failed.");
-      const retry = await p.confirm({ message: "Retry WhatsApp linking now?", initialValue: true });
+      const retry = await p.confirm({
+        message: "Retry WhatsApp linking now?",
+        initialValue: true,
+      });
       if (p.isCancel(retry) || !retry) return { gateway, changed: false, cancelled: false };
     }
 
@@ -585,6 +664,7 @@ async function runChannelWizard(
       },
       changed: true,
       cancelled: false,
+      ...(gatewayWasRunning ? { gatewayWasRunning } : {}),
     };
   }
 

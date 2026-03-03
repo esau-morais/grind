@@ -4,6 +4,7 @@ import {
   type AiProvider,
   type AuthType,
   type GatewayConfig,
+  type OAuthCallbackConfig,
   DEFAULT_MODELS,
   DEFAULT_SOUL,
   OAUTH_CONFIGS,
@@ -21,7 +22,7 @@ import {
 import { createUser, upsertCompanion } from "@grindxp/core/vault";
 import { showTitle } from "../brand";
 import { ensureGatewayDefaults, runIntegrationWizard } from "./integrations";
-import { ensureWebServer, startOAuthProxy } from "./setup";
+import { startOAuthProxy } from "./setup";
 import { startManagedGateway } from "../gateway/service";
 import { spinner } from "../spinner";
 
@@ -161,29 +162,20 @@ export async function initCommand(): Promise<void> {
           process.exit(1);
         }
 
-        let proxy: ReturnType<typeof startOAuthProxy> | undefined;
-        if (oauthConfig.method === "callback") {
-          await ensureWebServer();
-          proxy = startOAuthProxy(oauthConfig);
-        }
-
         const flow = startOAuthFlow(provider, oauthConfig);
-        const completion = flow.method === "callback" ? flow.complete() : null;
 
+        p.log.info(`Open this URL in your browser:\n  ${flow.authUrl}`);
+
+        // Best-effort browser open — silent on any failure (headless, no binary, no display).
         const openCmd =
           process.platform === "darwin"
             ? "open"
             : process.platform === "win32"
               ? "start"
               : "xdg-open";
-
         try {
           Bun.spawn([openCmd, flow.authUrl], { stdio: ["ignore", "ignore", "ignore"] });
-          p.log.info("Browser opened for authentication.");
-        } catch {
-          p.log.warn("Could not open browser automatically.");
-          p.log.info(`Open this URL manually:\n  ${flow.authUrl}`);
-        }
+        } catch {}
 
         if (flow.method === "code") {
           const codeResult = await p.text({
@@ -196,7 +188,7 @@ export async function initCommand(): Promise<void> {
           if (p.isCancel(codeResult) || typeof codeResult !== "string") return bail();
 
           const spin2 = spinner();
-          spin2.start("Exchanging authorization code...");
+          spin2.start("Exchanging authorization code…");
           try {
             await flow.completeWithCode(codeResult);
             spin2.stop("Authenticated successfully.");
@@ -206,17 +198,39 @@ export async function initCommand(): Promise<void> {
             process.exit(1);
           }
         } else {
+          let resolveCode!: (code: string) => void;
+          let rejectCode!: (err: Error) => void;
+          const codePromise = new Promise<string>((res, rej) => {
+            resolveCode = res;
+            rejectCode = rej;
+          });
+
+          const proxy = startOAuthProxy(
+            oauthConfig as OAuthCallbackConfig,
+            (code) => resolveCode(code),
+            (error) => rejectCode(new Error(`Authorization failed: ${error}`)),
+          );
+
+          const timeoutId = setTimeout(
+            () => rejectCode(new Error("Authorization timed out after 120s.")),
+            120_000,
+          );
+
           const spin2 = spinner();
-          spin2.start("Waiting for browser authentication");
+          spin2.start("Waiting for authentication…");
+
           try {
-            await completion;
+            const code = await codePromise;
+            clearTimeout(timeoutId);
+            await flow.completeWithCode(code);
             spin2.stop("Authenticated successfully.");
           } catch (err) {
+            clearTimeout(timeoutId);
             spin2.error("Authentication failed.");
             p.log.error(err instanceof Error ? err.message : String(err));
             process.exit(1);
           } finally {
-            proxy?.stop();
+            proxy.stop();
           }
         }
       }
