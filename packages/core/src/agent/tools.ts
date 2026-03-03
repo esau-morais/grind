@@ -1063,6 +1063,58 @@ async function normalizeForgeRuleDefinition(
   };
 }
 
+/**
+ * Tiered contact matching. Returns the tightest non-empty tier:
+ *   1. Phone number — strip non-digits from query and whatsappId, exact match
+ *   2. Exact name
+ *   3. Exact notify
+ *   4. Word-start name
+ *   5. Word-start notify
+ *   6. Substring name
+ *   7. Substring notify
+ *
+ * Phone-number lookup lets the agent or user pass "+55 11 99999-0000" and
+ * resolve directly to the right contact without needing a name.
+ * Tiering prevents "E" from matching "Esdras" when a contact named "E" exists.
+ */
+function matchContacts<T extends { name: string; notify?: string; whatsappId: string }>(
+  contacts: T[],
+  query: string,
+): T[] {
+  const normalize = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const digits = (s: string) => s.replace(/\D/g, "");
+
+  const qDigits = digits(query);
+  if (/^\d+$/.test(qDigits) && qDigits.length >= 7) {
+    const byPhone = contacts.filter((c) => digits(c.whatsappId) === qDigits);
+    if (byPhone.length > 0) return byPhone;
+  }
+
+  const q = normalize(query);
+  const n = (s: string) => normalize(s);
+  const wordStart = (field: string) =>
+    n(field)
+      .split(/\s+/)
+      .some((w) => w.startsWith(q));
+
+  const exactName = contacts.filter((c) => n(c.name) === q);
+  if (exactName.length > 0) return exactName;
+
+  const exactNotify = contacts.filter((c) => c.notify && n(c.notify) === q);
+  if (exactNotify.length > 0) return exactNotify;
+
+  const wordStartName = contacts.filter((c) => wordStart(c.name));
+  if (wordStartName.length > 0) return wordStartName;
+
+  const wordStartNotify = contacts.filter((c) => c.notify && wordStart(c.notify));
+  if (wordStartNotify.length > 0) return wordStartNotify;
+
+  const subName = contacts.filter((c) => n(c.name).includes(q));
+  if (subName.length > 0) return subName;
+
+  return contacts.filter((c) => c.notify && n(c.notify).includes(q));
+}
+
 export function createGrindTools(ctx: ToolContext) {
   return {
     get_integrations_status: tool({
@@ -1200,11 +1252,7 @@ export function createGrindTools(ctx: ToolContext) {
       }),
       execute: async ({ name }) => {
         const contacts = readContacts();
-        const normalize = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-        const query = normalize(name);
-        const matches = contacts.filter(
-          (c) => normalize(c.name).includes(query) || normalize(c.notify ?? "").includes(query),
-        );
+        const matches = matchContacts(contacts, name);
         if (matches.length === 0)
           return { ok: false, error: `No contact found matching "${name}".` };
         return { ok: true, matches };
@@ -1641,11 +1689,7 @@ export function createGrindTools(ctx: ToolContext) {
 
         if (channel === "whatsapp" && recipientName) {
           const contacts = readContacts();
-          const normalize = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-          const query = normalize(recipientName);
-          const matches = contacts.filter(
-            (c) => normalize(c.name).includes(query) || normalize(c.notify ?? "").includes(query),
-          );
+          const matches = matchContacts(contacts, recipientName);
 
           if (matches.length === 0) {
             return {

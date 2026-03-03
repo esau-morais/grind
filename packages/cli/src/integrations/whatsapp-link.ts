@@ -56,6 +56,7 @@ async function connectAndSync(sock: WASocket, authDir: string, timeoutMs: number
 
     if (statusCode === DisconnectReason.restartRequired) {
       process.stdout.write("WhatsApp requested restart after pairing. Reconnecting once...\n");
+      collector.flush();
       await closeSocket(sock.socket);
 
       const retry = await createWASocket(authDir, { syncFullHistory: true });

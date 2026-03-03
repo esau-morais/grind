@@ -24,7 +24,7 @@ import {
   startManagedGateway,
   stopManagedGateway,
 } from "../gateway/service";
-import { startOAuthProxy } from "./setup";
+import { waitForOAuthCode } from "./setup";
 
 export type ChannelProvider = "telegram" | "discord" | "whatsapp";
 export type ServiceProvider = "google";
@@ -259,19 +259,6 @@ async function runGoogleWizard(
   const clientSecret = flags.clientSecret ?? existingConfig?.clientSecret;
   const config = buildGoogleOAuthConfig(clientId, gmailEnabled, clientSecret);
 
-  let resolveCode!: (code: string) => void;
-  let rejectCode!: (err: Error) => void;
-  const codePromise = new Promise<string>((res, rej) => {
-    resolveCode = res;
-    rejectCode = rej;
-  });
-
-  const proxy = startOAuthProxy(
-    config,
-    (code) => resolveCode(code),
-    (error) => rejectCode(new Error(`Authorization failed: ${error}`)),
-  );
-
   const flow = startOAuthFlow("google-services", config);
 
   p.log.info(`Open this URL in your browser:\n  ${flow.authUrl}`);
@@ -283,27 +270,13 @@ async function runGoogleWizard(
     Bun.spawn([openCmd, flow.authUrl], { stdio: ["ignore", "ignore", "ignore"] });
   } catch {}
 
-  const spin = spinner();
-  spin.start("Waiting for authorization…");
-
-  const timeoutId = setTimeout(
-    () => rejectCode(new Error("Authorization timed out after 120s.")),
-    120_000,
-  );
-
   let token: Awaited<ReturnType<typeof flow.completeWithCode>>;
   try {
-    const code = await codePromise;
-    clearTimeout(timeoutId);
+    const code = await waitForOAuthCode(config);
     token = await flow.completeWithCode(code);
-    spin.stop("Authorized.");
   } catch (err) {
-    clearTimeout(timeoutId);
-    spin.error("Authorization failed.");
     p.log.error(err instanceof Error ? err.message : String(err));
     return { services: existingServices ?? {}, cancelled: true };
-  } finally {
-    proxy.stop();
   }
 
   let email: string | undefined;

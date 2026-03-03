@@ -229,41 +229,12 @@ export async function setupCommand(): Promise<void> {
           process.exit(1);
         }
       } else {
-        // OpenAI: proxy receives the redirect and resolves the Promise directly.
-        let resolveCode!: (code: string) => void;
-        let rejectCode!: (err: Error) => void;
-        const codePromise = new Promise<string>((res, rej) => {
-          resolveCode = res;
-          rejectCode = rej;
-        });
-
-        const cbPort = (oauthConfig as OAuthCallbackConfig).callbackPort;
-        const proxy = startOAuthProxy(
-          oauthConfig as OAuthCallbackConfig,
-          (code) => resolveCode(code),
-          (error) => rejectCode(new Error(`Authorization failed: ${error}`)),
-        );
-
-        const timeoutId = setTimeout(
-          () => rejectCode(new Error("Authorization timed out after 120s.")),
-          120_000,
-        );
-
-        const spin = spinner();
-        spin.start("Waiting for authentication…");
-
         try {
-          const code = await codePromise;
-          clearTimeout(timeoutId);
+          const code = await waitForOAuthCode(oauthConfig as OAuthCallbackConfig);
           await flow.completeWithCode(code);
-          spin.stop("Authenticated successfully.");
         } catch (err) {
-          clearTimeout(timeoutId);
-          spin.error("Authentication failed.");
           p.log.error(err instanceof Error ? err.message : String(err));
           process.exit(1);
-        } finally {
-          proxy.stop();
         }
       }
     }
@@ -378,6 +349,78 @@ export function startOAuthProxy(
     },
   });
   return { stop: () => server.stop() };
+}
+
+/**
+ * Waits for an OAuth authorization code via the local callback proxy, with a
+ * manual paste fallback for remote/headless environments where the browser
+ * redirect to 127.0.0.1 can't reach the server.
+ *
+ * Returns the authorization code, or throws on timeout or user cancellation.
+ */
+export async function waitForOAuthCode(
+  config: OAuthCallbackConfig,
+  timeoutMs = 120_000,
+): Promise<string> {
+  const { promise, resolve, reject } = Promise.withResolvers<string>();
+
+  const proxy = startOAuthProxy(
+    config,
+    (code) => resolve(code),
+    (error) => reject(new Error(`Authorization failed: ${error}`)),
+  );
+
+  const timeoutId = setTimeout(
+    () => reject(new Error("Authorization timed out after 120s.")),
+    timeoutMs,
+  );
+
+  const spin = spinner();
+  spin.start("Waiting for authorization… (or paste the redirect URL below)");
+
+  // Prompt the user to paste the full redirect URL — this races with the proxy.
+  // On local machines the proxy wins; on remote servers the user pastes.
+  const pasteResult = p.text({
+    message: "If the redirect failed, paste the full URL from your browser's address bar:",
+    placeholder: "http://127.0.0.1:.../auth/callback?code=...",
+    validate: (v) => {
+      if (!v) return;
+      try {
+        const code = new URL(v).searchParams.get("code");
+        if (!code) return "URL does not contain a code parameter.";
+      } catch {
+        return "Not a valid URL.";
+      }
+    },
+  });
+
+  pasteResult.then((val) => {
+    if (p.isCancel(val)) {
+      reject(new Error("Cancelled."));
+      return;
+    }
+    if (val) {
+      try {
+        const code = new URL(val).searchParams.get("code");
+        if (code) resolve(code);
+      } catch {
+        // invalid URL — ignore, proxy may still win
+      }
+    }
+  });
+
+  try {
+    const code = await promise;
+    clearTimeout(timeoutId);
+    spin.stop("Authorized.");
+    return code;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    spin.error("Authorization failed.");
+    throw err;
+  } finally {
+    proxy.stop();
+  }
 }
 
 function oauthCallbackHtml(success: boolean, message: string): string {
